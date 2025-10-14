@@ -2,14 +2,15 @@ package usecase
 
 import (
 	"context"
+	"mesaYaWs/internal/realtime/application/port"
 	"mesaYaWs/internal/realtime/domain"
 )
 
 type BroadcastUseCase struct {
-	broadcaster Broadcaster
+	broadcaster port.Broadcaster
 }
 
-func NewBroadcastUseCase(b Broadcaster) *BroadcastUseCase {
+func NewBroadcastUseCase(b port.Broadcaster) *BroadcastUseCase {
 	return &BroadcastUseCase{broadcaster: b}
 }
 

@@ -15,6 +15,11 @@ type Client struct {
 	send chan []byte
 }
 
+// NewClient crea un cliente WebSocket con buffer para la cola de salida.
+func NewClient(conn *websocket.Conn, buf int) *Client {
+	return &Client{conn: conn, send: make(chan []byte, buf)}
+}
+
 type Hub struct {
 	topics map[string]map[*Client]struct{}
 	mu     sync.RWMutex

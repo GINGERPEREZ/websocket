@@ -20,10 +20,7 @@ func NewWebsocketHandler(hub *infrastructure.Hub) func(echo.Context) error {
 			return err
 		}
 
-		client := &infrastructure.Client{
-			conn: conn,
-			send: make(chan []byte, 8),
-		}
+		client := infrastructure.NewClient(conn, 8)
 
 		hub.Register(topic, client)
 		go client.WritePump()
