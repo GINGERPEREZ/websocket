@@ -3,6 +3,7 @@ module mesaYaWs
 go 1.25.0
 
 require (
+	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/klauspost/compress v1.15.9 // indirect
 	github.com/labstack/echo/v4 v4.13.4 // indirect
