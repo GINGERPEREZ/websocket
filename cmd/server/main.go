@@ -10,6 +10,7 @@ import (
 	usecase "mesaYaWs/internal/realtime/application/usecase"
 	"mesaYaWs/internal/realtime/infrastructure"
 	"mesaYaWs/internal/realtime/transport"
+	"mesaYaWs/internal/shared/auth"
 	"os"
 	"os/signal"
 	"syscall"
@@ -25,14 +26,24 @@ func main() {
 	// Registrar handlers de tópicos (cada feature)
 	registry.Register(&handler.UserCreatedHandler{UseCase: usecase.NewBroadcastUseCase(hub)})
 
-	// Iniciar Kafka consumers
+	// Iniciar Kafka consumers (registrar topics desde config)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	broker.StartKafkaConsumers(ctx, registry, cfg.KafkaBrokers, []string{"user.created"})
+	// gather topics from config
+	topics := make([]string, 0, len(cfg.EntityTopics))
+	for _, t := range cfg.EntityTopics {
+		topics = append(topics, t)
+	}
+	broker.StartKafkaConsumers(ctx, registry, cfg.KafkaBrokers, topics)
 
 	// Echo server
 	e := echo.New()
-	e.GET("/ws", transport.NewWebsocketHandler(hub))
+
+	// JWT validator used to validate tokens issued by the Nest auth service
+	validator := auth.NewJWTValidator(cfg.JWTSecret)
+
+	// expose websocket route for restaurant sections: /ws/restaurant/:section/:token
+	e.GET("/ws/restaurant/:section/:token", transport.NewWebsocketHandler(hub, validator))
 
 	go func() {
 		if err := e.Start(":" + cfg.ServerPort); err != nil {
