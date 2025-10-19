@@ -1,23 +1,15 @@
 const ws = new WebSocket(
-  "ws://localhost:8080/ws/restaurant/1/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5ZDA1NWJiOC1jMjc4LTRmYzUtYmJjNi1mNTAwNjU5MzMwYzUiLCJlbWFpbCI6InVzZXJAZXhhbXBsZS5jb20iLCJyb2xlcyI6WyJBRE1JTiJdLCJpYXQiOjE3NjA5MDEzMDQsImV4cCI6MTc2MDk4NzcwNH0.qB-ZHkyhoxIFoQK0Hovj9ANvg1tOOo_7EEB44mQMi7Y"
+  "ws://localhost:8080/ws/restaurant/1/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5ZDA1NWJiOC1jMjc4LTRmYzUtYmJjNi1mNTAwNjU5MzMwYzUiLCJlbWFpbCI6InVzZXJAZXhhbXBsZS5jb20iLCJyb2xlcyI6WyJBRE1JTiJdLCJpYXQiOjE3NjA5MDg0MTMsImV4cCI6MTc2MDk5NDgxM30.tTu1JSiWZA2sK9hTox2w49BeChDOkT8ylOboED8WWCU"
 );
-
 ws.onopen = () => {
-  console.log("✅ WebSocket abierto");
+  console.log("✅ abierto");
+  ws.send(
+    JSON.stringify({
+      action: "list_restaurants",
+      payload: { limit: 1 },
+    })
+  );
 };
-
-ws.onmessage = (event: MessageEvent) => {
-  console.log("📩 Mensaje recibido:", event.data);
-};
-
-ws.onclose = () => {
-  console.log("❌ WebSocket cerrado");
-};
-
-ws.send(
-  JSON.stringify({ action: "snapshot", entity: "restaurants", resourceId: "1" })
-);
-
-ws.onerror = (error) => {
-  console.error("⚠️ Error en WebSocket:", error);
-};
+ws.onmessage = (event) => console.log("📩", event.data);
+ws.onclose = (event) => console.log("❌ cerrado", event.code, event.reason);
+ws.onerror = console.error;
