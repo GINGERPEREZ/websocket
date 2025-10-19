@@ -43,7 +43,7 @@ func main() {
 	validator := auth.NewJWTValidator(cfg.JWTSecret)
 
 	// expose websocket route for restaurant sections: /ws/restaurant/:section/:token
-	e.GET("/ws/restaurant/:section/:token", transport.NewWebsocketHandler(hub, validator))
+	e.GET("/ws/restaurant/:section/:token", transport.NewWebsocketHandler(hub, validator, "restaurants", cfg.AllowedActions))
 
 	go func() {
 		if err := e.Start(":" + cfg.ServerPort); err != nil {

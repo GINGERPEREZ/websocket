@@ -18,6 +18,7 @@ type Client struct {
 	send       chan []byte
 	userID     string
 	sessionID  string
+	sectionID  string
 	subscribed map[string]struct{}
 	closeOnce  sync.Once
 }
@@ -28,19 +29,24 @@ type command struct {
 }
 
 // NewClient crea un cliente WebSocket con metadata de usuario y buffer configurable.
-func NewClient(hub *Hub, conn *websocket.Conn, userID, sessionID string, buf int) *Client {
+func NewClient(hub *Hub, conn *websocket.Conn, userID, sessionID, sectionID string, buf int) *Client {
 	return &Client{
 		hub:        hub,
 		conn:       conn,
 		send:       make(chan []byte, buf),
 		userID:     userID,
 		sessionID:  sessionID,
+		sectionID:  strings.TrimSpace(sectionID),
 		subscribed: make(map[string]struct{}),
 	}
 }
 
 func (c *Client) key() string {
-	return c.userID + ":" + c.sessionID
+	parts := []string{c.userID, c.sessionID}
+	if c.sectionID != "" {
+		parts = append(parts, c.sectionID)
+	}
+	return strings.Join(parts, ":")
 }
 
 func (c *Client) close() {
@@ -48,6 +54,20 @@ func (c *Client) close() {
 		close(c.send)
 		_ = c.conn.Close()
 	})
+}
+
+func (c *Client) SendDomainMessage(msg *domain.Message) {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("websocket marshal error: %v", err)
+		return
+	}
+	select {
+	case c.send <- data:
+	default:
+		log.Printf("websocket send buffer full for user=%s session=%s section=%s", c.userID, c.sessionID, c.sectionID)
+		go c.hub.detachClient(c)
+	}
 }
 
 func (c *Client) WritePump() {
@@ -85,7 +105,7 @@ func (c *Client) ReadPump() {
 		_ = c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		if err := c.conn.ReadJSON(&cmd); err != nil {
 			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-				log.Printf("websocket read error: %v", err)
+				log.Printf("websocket read error user=%s session=%s section=%s: %v", c.userID, c.sessionID, c.sectionID, err)
 			}
 			return
 		}
@@ -98,10 +118,12 @@ func (c *Client) handleCommand(cmd command) {
 	case "subscribe":
 		if cmd.Topic != "" {
 			c.hub.subscribe(c, cmd.Topic)
+			log.Printf("ws subscribe user=%s session=%s section=%s topic=%s", c.userID, c.sessionID, c.sectionID, cmd.Topic)
 		}
 	case "unsubscribe":
 		if cmd.Topic != "" {
 			c.hub.unsubscribe(c, cmd.Topic)
+			log.Printf("ws unsubscribe user=%s session=%s section=%s topic=%s", c.userID, c.sessionID, c.sectionID, cmd.Topic)
 		}
 	case "ping":
 		ack := domain.Message{
@@ -110,13 +132,7 @@ func (c *Client) handleCommand(cmd command) {
 			Action:    "pong",
 			Timestamp: time.Now().UTC(),
 		}
-		if data, err := json.Marshal(ack); err == nil {
-			select {
-			case c.send <- data:
-			default:
-				log.Printf("websocket: unable to enqueue pong for user %s", c.userID)
-			}
-		}
+		c.SendDomainMessage(&ack)
 	}
 }
 
@@ -140,6 +156,7 @@ func (h *Hub) registerClient(c *Client) {
 		h.detachLocked(existing)
 	}
 	h.clients[c.key()] = c
+	log.Printf("ws client registered user=%s session=%s section=%s", c.userID, c.sessionID, c.sectionID)
 }
 
 func (h *Hub) subscribe(c *Client, topic string) {
@@ -162,6 +179,7 @@ func (h *Hub) unsubscribe(c *Client, topic string) {
 		}
 	}
 	delete(c.subscribed, topic)
+	log.Printf("ws client unsubscribed user=%s session=%s section=%s topic=%s", c.userID, c.sessionID, c.sectionID, topic)
 }
 
 func (h *Hub) detachClient(c *Client) {
@@ -184,6 +202,7 @@ func (h *Hub) detachLocked(c *Client) {
 	}
 	delete(h.clients, c.key())
 	c.close()
+	log.Printf("ws client detached user=%s session=%s section=%s", c.userID, c.sessionID, c.sectionID)
 }
 
 func (h *Hub) Broadcast(_ context.Context, msg *domain.Message) {
@@ -202,9 +221,11 @@ func (h *Hub) Broadcast(_ context.Context, msg *domain.Message) {
 
 	targetUser := ""
 	targetSession := ""
+	targetSection := ""
 	if msg.Metadata != nil {
 		targetUser = strings.TrimSpace(msg.Metadata["userId"])
 		targetSession = strings.TrimSpace(msg.Metadata["sessionId"])
+		targetSection = strings.TrimSpace(msg.Metadata["sectionId"])
 	}
 
 	for _, c := range clients {
@@ -212,6 +233,9 @@ func (h *Hub) Broadcast(_ context.Context, msg *domain.Message) {
 			continue
 		}
 		if targetSession != "" && c.sessionID != targetSession {
+			continue
+		}
+		if targetSection != "" && c.sectionID != targetSection {
 			continue
 		}
 		select {
@@ -230,4 +254,5 @@ func (h *Hub) AttachClient(c *Client, topics []string) {
 		}
 		h.subscribe(c, topic)
 	}
+	log.Printf("ws client attached user=%s session=%s section=%s topics=%v", c.userID, c.sessionID, c.sectionID, topics)
 }
