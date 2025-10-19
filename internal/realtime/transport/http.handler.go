@@ -124,13 +124,7 @@ func NewWebsocketHandler(
 			action := strings.ToLower(strings.TrimSpace(cmd.Action))
 			switch action {
 			case "list_restaurants", "fetch_all", "list":
-				var payload struct {
-					Page      int    `json:"page"`
-					Limit     int    `json:"limit"`
-					Search    string `json:"search"`
-					SortBy    string `json:"sortBy"`
-					SortOrder string `json:"sortOrder"`
-				}
+				var payload domain.ListRestaurantsCommand
 				if len(cmd.Payload) > 0 {
 					if err := json.Unmarshal(cmd.Payload, &payload); err != nil {
 						log.Printf("ws handler: list payload decode failed section=%s err=%v", section, err)
@@ -138,57 +132,25 @@ func NewWebsocketHandler(
 						return
 					}
 				}
-				params := domain.PagedQuery{
-					Page:      payload.Page,
-					Limit:     payload.Limit,
-					Search:    payload.Search,
-					SortBy:    payload.SortBy,
-					SortOrder: payload.SortOrder,
-				}
-				snapshot, normalized, err := connectUC.ListRestaurants(cmdCtx, token, section, params)
+				message, err := connectUC.HandleListRestaurantsCommand(cmdCtx, token, section, payload, entity)
 				if err != nil {
 					log.Printf("ws handler: list fetch failed section=%s err=%v", section, err)
 					sendCommandError(client, entity, section, "list", err.Error())
 					return
 				}
-				metadata := normalized.Metadata(section)
-				message := &domain.Message{
-					Topic:      entity + ".list",
-					Entity:     entity,
-					Action:     "list",
-					ResourceID: section,
-					Metadata:   metadata,
-					Data:       snapshot.Payload,
-					Timestamp:  time.Now().UTC(),
-				}
 				client.SendDomainMessage(message)
 			case "get_restaurant", "fetch_one", "detail":
-				var payload struct {
-					ID string `json:"id"`
-				}
+				var payload domain.GetRestaurantCommand
 				if err := json.Unmarshal(cmd.Payload, &payload); err != nil || strings.TrimSpace(payload.ID) == "" {
 					log.Printf("ws handler: detail payload decode failed section=%s err=%v", section, err)
 					sendCommandError(client, entity, section, "detail", "invalid payload")
 					return
 				}
-				snapshot, err := connectUC.GetRestaurant(cmdCtx, token, section, payload.ID)
+				message, err := connectUC.HandleGetRestaurantCommand(cmdCtx, token, section, payload, entity)
 				if err != nil {
 					log.Printf("ws handler: detail fetch failed section=%s restaurant=%s err=%v", section, payload.ID, err)
 					sendCommandError(client, entity, section, "detail", err.Error())
 					return
-				}
-				metadata := map[string]string{
-					"sectionId":    section,
-					"restaurantId": strings.TrimSpace(payload.ID),
-				}
-				message := &domain.Message{
-					Topic:      entity + ".detail",
-					Entity:     entity,
-					Action:     "detail",
-					ResourceID: strings.TrimSpace(payload.ID),
-					Metadata:   metadata,
-					Data:       snapshot.Payload,
-					Timestamp:  time.Now().UTC(),
 				}
 				client.SendDomainMessage(message)
 			default:

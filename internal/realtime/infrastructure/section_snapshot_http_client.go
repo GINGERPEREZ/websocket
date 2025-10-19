@@ -118,7 +118,15 @@ func decodeSectionSnapshot(body io.Reader) (*domain.SectionSnapshot, error) {
 	}
 	log.Printf("snapshot-client: payload decoded type=%T", payload)
 
-	return &domain.SectionSnapshot{Payload: normalizeSnapshotPayload(payload)}, nil
+	normalized := normalizeSnapshotPayload(payload)
+	snapshot := &domain.SectionSnapshot{Payload: normalized}
+	if list, ok := domain.BuildRestaurantList(normalized); ok {
+		snapshot.RestaurantList = list
+	}
+	if restaurant, ok := domain.BuildRestaurantDetail(normalized); ok {
+		snapshot.Restaurant = restaurant
+	}
+	return snapshot, nil
 }
 
 func normalizeSnapshotPayload(payload interface{}) map[string]any {

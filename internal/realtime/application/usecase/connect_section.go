@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -191,4 +192,67 @@ func (uc *ConnectSectionUseCase) refreshItem(ctx context.Context, entity, sectio
 	}
 	broadcaster.Execute(ctx, message)
 	log.Printf("connect-section: refreshed detail broadcast section=%s entity=%s restaurant=%s", sectionID, entity, entry.resourceID)
+}
+
+// HandleListRestaurantsCommand executes the list command end-to-end and returns a domain message ready for broadcasting.
+func (uc *ConnectSectionUseCase) HandleListRestaurantsCommand(ctx context.Context, token, sectionID string, command domain.ListRestaurantsCommand, entity string) (*domain.Message, error) {
+	query := domain.PagedQuery{
+		Page:      command.Page,
+		Limit:     command.Limit,
+		Search:    command.Search,
+		SortBy:    command.SortBy,
+		SortOrder: command.SortOrder,
+	}
+	snapshot, normalized, err := uc.ListRestaurants(ctx, token, sectionID, query)
+	if err != nil {
+		return nil, err
+	}
+	metadata := normalized.Metadata(sectionID)
+	if snapshot.RestaurantList != nil {
+		metadata["itemsCount"] = strconv.Itoa(len(snapshot.RestaurantList.Items))
+		if snapshot.RestaurantList.Total > 0 {
+			metadata["total"] = strconv.Itoa(snapshot.RestaurantList.Total)
+		}
+	}
+	message := &domain.Message{
+		Topic:      entity + ".list",
+		Entity:     entity,
+		Action:     "list",
+		ResourceID: sectionID,
+		Metadata:   metadata,
+		Data:       snapshot.Payload,
+		Timestamp:  time.Now().UTC(),
+	}
+	return message, nil
+}
+
+// HandleGetRestaurantCommand executes the detail command end-to-end and returns a domain message ready for broadcasting.
+func (uc *ConnectSectionUseCase) HandleGetRestaurantCommand(ctx context.Context, token, sectionID string, command domain.GetRestaurantCommand, entity string) (*domain.Message, error) {
+	restaurantID := strings.TrimSpace(command.ID)
+	if restaurantID == "" {
+		return nil, port.ErrSnapshotNotFound
+	}
+	snapshot, err := uc.GetRestaurant(ctx, token, sectionID, restaurantID)
+	if err != nil {
+		return nil, err
+	}
+	metadata := map[string]string{
+		"sectionId":    sectionID,
+		"restaurantId": restaurantID,
+	}
+	if snapshot.Restaurant != nil {
+		if trimmed := strings.TrimSpace(snapshot.Restaurant.Name); trimmed != "" {
+			metadata["restaurantName"] = trimmed
+		}
+	}
+	message := &domain.Message{
+		Topic:      entity + ".detail",
+		Entity:     entity,
+		Action:     "detail",
+		ResourceID: restaurantID,
+		Metadata:   metadata,
+		Data:       snapshot.Payload,
+		Timestamp:  time.Now().UTC(),
+	}
+	return message, nil
 }
