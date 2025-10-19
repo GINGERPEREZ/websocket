@@ -1,13 +1,19 @@
 package usecase
 
 import (
-	"net/url"
-	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"mesaYaWs/internal/realtime/application/port"
 	"mesaYaWs/internal/realtime/domain"
+)
+
+const (
+	cacheKindList  = "list"
+	cacheKindItem  = "item"
+	cacheDelimiter = ":"
 )
 
 type snapshotCache struct {
@@ -16,26 +22,51 @@ type snapshotCache struct {
 }
 
 type snapshotCacheEntry struct {
-	sectionID string
-	queryKey  string
-	query     url.Values
-	token     string
-	snapshot  *domain.SectionSnapshot
-	fetchedAt time.Time
+	sectionID   string
+	kind        string
+	key         string
+	listOptions port.SectionListOptions
+	resourceID  string
+	token       string
+	snapshot    *domain.SectionSnapshot
+	fetchedAt   time.Time
 }
 
 func newSnapshotCache() *snapshotCache {
 	return &snapshotCache{entries: make(map[string]map[string]*snapshotCacheEntry)}
 }
 
-func (c *snapshotCache) get(sectionID string, query url.Values) (*snapshotCacheEntry, bool) {
+func (c *snapshotCache) set(sectionID, kind string, options port.SectionListOptions, resourceID, token string, snapshot *domain.SectionSnapshot) {
+	sectionID = strings.TrimSpace(sectionID)
+	if sectionID == "" {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.entries[sectionID] == nil {
+		c.entries[sectionID] = make(map[string]*snapshotCacheEntry)
+	}
+	key := cacheEntryKey(kind, options, resourceID)
+	c.entries[sectionID][key] = &snapshotCacheEntry{
+		sectionID:   sectionID,
+		kind:        kind,
+		key:         key,
+		listOptions: options,
+		resourceID:  strings.TrimSpace(resourceID),
+		token:       token,
+		snapshot:    snapshot,
+		fetchedAt:   time.Now().UTC(),
+	}
+}
+
+func (c *snapshotCache) get(sectionID, kind string, options port.SectionListOptions, resourceID string) (*snapshotCacheEntry, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	sec := c.entries[strings.TrimSpace(sectionID)]
 	if sec == nil {
 		return nil, false
 	}
-	key := canonicalQuery(query)
+	key := cacheEntryKey(kind, options, resourceID)
 	entry, ok := sec[key]
 	if !ok {
 		return nil, false
@@ -43,36 +74,15 @@ func (c *snapshotCache) get(sectionID string, query url.Values) (*snapshotCacheE
 	return entry.clone(), true
 }
 
-func (c *snapshotCache) set(sectionID string, query url.Values, token string, snapshot *domain.SectionSnapshot) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *snapshotCache) delete(sectionID, kind string, options port.SectionListOptions, resourceID string) {
 	sectionID = strings.TrimSpace(sectionID)
 	if sectionID == "" {
 		return
 	}
-	if c.entries[sectionID] == nil {
-		c.entries[sectionID] = make(map[string]*snapshotCacheEntry)
-	}
-	key := canonicalQuery(query)
-	c.entries[sectionID][key] = &snapshotCacheEntry{
-		sectionID: sectionID,
-		queryKey:  key,
-		query:     cloneValues(query),
-		token:     token,
-		snapshot:  snapshot,
-		fetchedAt: time.Now().UTC(),
-	}
-}
-
-func (c *snapshotCache) delete(sectionID string, query url.Values) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	sectionID = strings.TrimSpace(sectionID)
-	if sectionID == "" {
-		return
-	}
 	if sec := c.entries[sectionID]; sec != nil {
-		key := canonicalQuery(query)
+		key := cacheEntryKey(kind, options, resourceID)
 		delete(sec, key)
 		if len(sec) == 0 {
 			delete(c.entries, sectionID)
@@ -83,8 +93,7 @@ func (c *snapshotCache) delete(sectionID string, query url.Values) {
 func (c *snapshotCache) entriesForSection(sectionID string) []*snapshotCacheEntry {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	sectionID = strings.TrimSpace(sectionID)
-	sec := c.entries[sectionID]
+	sec := c.entries[strings.TrimSpace(sectionID)]
 	if len(sec) == 0 {
 		return nil
 	}
@@ -100,56 +109,48 @@ func (e *snapshotCacheEntry) clone() *snapshotCacheEntry {
 		return nil
 	}
 	cloned := *e
-	cloned.query = cloneValues(e.query)
 	return &cloned
 }
 
-func canonicalQuery(values url.Values) string {
-	if len(values) == 0 {
-		return ""
+func cacheEntryKey(kind string, options port.SectionListOptions, resourceID string) string {
+	switch strings.ToLower(kind) {
+	case cacheKindItem:
+		return cacheKindItem + cacheDelimiter + strings.TrimSpace(resourceID)
+	default:
+		return cacheKindList + cacheDelimiter + canonicalListOptions(options)
 	}
-	keys := make([]string, 0, len(values))
-	for k := range values {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		ik := strings.ToLower(strings.TrimSpace(keys[i]))
-		jk := strings.ToLower(strings.TrimSpace(keys[j]))
-		if ik == jk {
-			return keys[i] < keys[j]
-		}
-		return ik < jk
-	})
-
-	var builder strings.Builder
-	for idx, key := range keys {
-		if idx > 0 {
-			builder.WriteByte('&')
-		}
-		normalizedKey := strings.ToLower(strings.TrimSpace(key))
-		builder.WriteString(url.QueryEscape(normalizedKey))
-		builder.WriteByte('=')
-		vals := append([]string(nil), values[key]...)
-		for i := range vals {
-			vals[i] = strings.TrimSpace(vals[i])
-		}
-		sort.Strings(vals)
-		if len(vals) > 0 {
-			builder.WriteString(url.QueryEscape(vals[0]))
-		}
-	}
-	return builder.String()
 }
 
-func cloneValues(src url.Values) url.Values {
-	if src == nil {
-		return nil
+func canonicalListOptions(options port.SectionListOptions) string {
+	page := options.Page
+	if page <= 0 {
+		page = 1
 	}
-	dst := make(url.Values, len(src))
-	for key, values := range src {
-		copied := make([]string, len(values))
-		copy(copied, values)
-		dst[key] = copied
+
+	limit := options.Limit
+	if limit <= 0 {
+		limit = 20
 	}
-	return dst
+	if limit > 100 {
+		limit = 100
+	}
+
+	search := strings.ToLower(strings.TrimSpace(options.Search))
+	sortBy := strings.ToLower(strings.TrimSpace(options.SortBy))
+	sortOrder := strings.ToUpper(strings.TrimSpace(options.SortOrder))
+
+	var builder strings.Builder
+	builder.Grow(len(search) + len(sortBy) + len(sortOrder) + 32)
+	builder.WriteString("page=")
+	builder.WriteString(strconv.Itoa(page))
+	builder.WriteString("&limit=")
+	builder.WriteString(strconv.Itoa(limit))
+	builder.WriteString("&search=")
+	builder.WriteString(search)
+	builder.WriteString("&sortBy=")
+	builder.WriteString(sortBy)
+	builder.WriteString("&sortOrder=")
+	builder.WriteString(sortOrder)
+
+	return builder.String()
 }

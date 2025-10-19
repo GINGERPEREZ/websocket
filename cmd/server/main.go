@@ -37,16 +37,6 @@ func main() {
 	// Use cases
 	broadcastUC := usecase.NewBroadcastUseCase(hub)
 
-	// Iniciar Kafka consumers (registrar topics desde config)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	// gather topics from config
-	topics := make([]string, 0, len(cfg.EntityTopics))
-	for _, t := range cfg.EntityTopics {
-		topics = append(topics, t)
-	}
-	broker.StartKafkaConsumers(ctx, registry, cfg.KafkaBrokers, topics)
-
 	// Echo server
 	e := echo.New()
 	e.Logger.SetOutput(log.Writer())
@@ -61,6 +51,16 @@ func main() {
 	for entity, topic := range cfg.EntityTopics {
 		registry.Register(handler.NewEntityStreamHandler(entity, topic, cfg.AllowedActions, broadcastUC, connectUC))
 	}
+
+	// Iniciar Kafka consumers (registrar topics desde config)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// gather topics from config
+	topics := make([]string, 0, len(cfg.EntityTopics))
+	for _, t := range cfg.EntityTopics {
+		topics = append(topics, t)
+	}
+	broker.StartKafkaConsumers(ctx, registry, cfg.KafkaBrokers, topics)
 
 	// expose websocket route for restaurant sections: /ws/restaurant/:section/:token
 	e.GET("/ws/restaurant/:section/:token", transport.NewWebsocketHandler(hub, connectUC, "restaurants", cfg.AllowedActions))

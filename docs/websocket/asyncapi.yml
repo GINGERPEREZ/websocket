@@ -1,0 +1,330 @@
+asyncapi: "2.6.0"
+info:
+  title: Mesa Ya Realtime WebSocket API
+  version: 1.0.0
+  description: |
+    Realtime channel that complements the REST API documented in swagger.json.
+    Clients connect with a JWT issued by the Nest auth service and can request
+    restaurant snapshots or individual restaurant details via command messages.
+servers:
+  local-dev:
+    url: ws://localhost:8080/ws/restaurant/{section}/{token}
+    protocol: ws
+    description: Local development endpoint
+    variables:
+      section:
+        description: Restaurant section identifier used to scope broadcasts.
+        default: "1"
+      token:
+        description: >-
+          JWT bearer token created by the Nest auth service. It may also be provided
+          through the Authorization header after the connection is established.
+        default: example.jwt.token
+channels:
+  system.connected:
+    subscribe:
+      summary: Connection acknowledgement emitted after a successful handshake.
+      message:
+        $ref: "#/components/messages/SystemConnected"
+  system.pong:
+    subscribe:
+      summary: Response to client `ping` commands.
+      message:
+        $ref: "#/components/messages/SystemPong"
+  restaurants.list:
+    subscribe:
+      summary: Result of a `list_restaurants` command or Kafka-triggered refresh.
+      message:
+        $ref: "#/components/messages/RestaurantsList"
+  restaurants.detail:
+    subscribe:
+      summary: Result of a `get_restaurant` command or Kafka-triggered refresh for the cached entity.
+      message:
+        $ref: "#/components/messages/RestaurantDetail"
+  restaurants.error:
+    subscribe:
+      summary: Error message associated with a command.
+      message:
+        $ref: "#/components/messages/CommandError"
+  command.list_restaurants:
+    publish:
+      summary: Request a paginated list of restaurants.
+      message:
+        $ref: "#/components/messages/ListRestaurantsCommand"
+  command.get_restaurant:
+    publish:
+      summary: Request a single restaurant by identifier.
+      message:
+        $ref: "#/components/messages/GetRestaurantCommand"
+  command.subscribe:
+    publish:
+      summary: Subscribe to additional broadcast topics.
+      message:
+        $ref: "#/components/messages/SubscribeCommand"
+  command.unsubscribe:
+    publish:
+      summary: Remove a previously subscribed topic.
+      message:
+        $ref: "#/components/messages/SubscribeCommand"
+  command.ping:
+    publish:
+      summary: Maintain the connection alive and observe latency.
+      message:
+        $ref: "#/components/messages/PingCommand"
+components:
+  messages:
+    SystemConnected:
+      name: system.connected
+      payload:
+        type: object
+        properties:
+          topic:
+            const: system.connected
+          entity:
+            const: system
+          action:
+            const: connected
+          metadata:
+            type: object
+            properties:
+              userId:
+                type: string
+              sessionId:
+                type: string
+              sectionId:
+                type: string
+            required:
+              - userId
+              - sessionId
+              - sectionId
+          data:
+            type: object
+            properties:
+              entity:
+                type: string
+              sectionId:
+                type: string
+              allowedTopics:
+                type: array
+                items:
+                  type: string
+              roles:
+                type: array
+                items:
+                  type: string
+          timestamp:
+            type: string
+            format: date-time
+        required:
+          - topic
+          - entity
+          - action
+          - metadata
+          - data
+          - timestamp
+    SystemPong:
+      name: system.pong
+      payload:
+        type: object
+        properties:
+          topic:
+            const: system.pong
+          entity:
+            const: system
+          action:
+            const: pong
+          timestamp:
+            type: string
+            format: date-time
+        required:
+          - topic
+          - entity
+          - action
+          - timestamp
+    RestaurantsList:
+      name: restaurants.list
+      payload:
+        type: object
+        properties:
+          topic:
+            const: restaurants.list
+          entity:
+            const: restaurants
+          action:
+            const: list
+          resourceId:
+            type: string
+            description: Section identifier whose data is being returned.
+          metadata:
+            type: object
+            properties:
+              sectionId:
+                type: string
+              page:
+                type: string
+              limit:
+                type: string
+              search:
+                type: string
+              sortBy:
+                type: string
+              sortOrder:
+                type: string
+          data:
+            type: object
+            description: Copy of the REST payload returned by `/api/v1/restaurant`.
+          timestamp:
+            type: string
+            format: date-time
+        required:
+          - topic
+          - entity
+          - action
+          - resourceId
+          - data
+          - timestamp
+    RestaurantDetail:
+      name: restaurants.detail
+      payload:
+        type: object
+        properties:
+          topic:
+            const: restaurants.detail
+          entity:
+            const: restaurants
+          action:
+            const: detail
+          resourceId:
+            type: string
+            description: Restaurant identifier.
+          metadata:
+            type: object
+            properties:
+              sectionId:
+                type: string
+              restaurantId:
+                type: string
+          data:
+            type: object
+            description: Copy of the REST payload returned by `/api/v1/restaurant/{id}`.
+          timestamp:
+            type: string
+            format: date-time
+        required:
+          - topic
+          - entity
+          - action
+          - resourceId
+          - data
+          - timestamp
+    CommandError:
+      name: restaurants.error
+      payload:
+        type: object
+        properties:
+          topic:
+            const: restaurants.error
+          entity:
+            const: restaurants
+          action:
+            const: error
+          resourceId:
+            type: string
+          metadata:
+            type: object
+            properties:
+              sectionId:
+                type: string
+              action:
+                type: string
+              reason:
+                type: string
+          data:
+            type: object
+            properties:
+              error:
+                type: string
+          timestamp:
+            type: string
+            format: date-time
+        required:
+          - topic
+          - entity
+          - action
+          - metadata
+          - data
+          - timestamp
+    ListRestaurantsCommand:
+      name: list_restaurants
+      payload:
+        type: object
+        required:
+          - action
+        properties:
+          action:
+            const: list_restaurants
+          payload:
+            type: object
+            properties:
+              page:
+                type: integer
+                minimum: 1
+                default: 1
+              limit:
+                type: integer
+                minimum: 1
+                maximum: 100
+                default: 20
+              search:
+                type: string
+                description: Overrides the default section filter.
+              sortBy:
+                type: string
+              sortOrder:
+                type: string
+                enum:
+                  - ASC
+                  - DESC
+    GetRestaurantCommand:
+      name: get_restaurant
+      payload:
+        type: object
+        required:
+          - action
+          - payload
+        properties:
+          action:
+            const: get_restaurant
+          payload:
+            type: object
+            required:
+              - id
+            properties:
+              id:
+                type: string
+                description: Restaurant identifier (UUID).
+    SubscribeCommand:
+      name: subscribe
+      payload:
+        type: object
+        required:
+          - action
+          - topic
+        properties:
+          action:
+            type: string
+            enum:
+              - subscribe
+              - unsubscribe
+          topic:
+            type: string
+            description: Topic name (e.g. `restaurants.created`).
+    PingCommand:
+      name: ping
+      payload:
+        type: object
+        required:
+          - action
+        properties:
+          action:
+            const: ping

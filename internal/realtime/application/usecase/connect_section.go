@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
-	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,7 +16,6 @@ import (
 type ConnectSectionInput struct {
 	Token     string
 	SectionID string
-	Query     url.Values
 }
 
 type ConnectSectionOutput struct {
@@ -60,37 +59,7 @@ func (uc *ConnectSectionUseCase) Execute(ctx context.Context, input ConnectSecti
 	}
 	log.Printf("connect-section: token valid section=%s subject=%s session=%s roles=%v", input.SectionID, claims.RegisteredClaims.Subject, claims.SessionID, claims.Roles)
 
-	normalizedQuery := normalizeQueryParams(input.Query)
-	queryKey := canonicalQuery(normalizedQuery)
-	if queryKey != "" {
-		log.Printf("connect-section: snapshot params section=%s query=%s", input.SectionID, queryKey)
-	}
-
-	fetchQuery := cloneValues(normalizedQuery)
-	snapshot, err := uc.SnapshotFetcher.FetchSection(ctx, input.Token, input.SectionID, fetchQuery)
-	switch {
-	case errors.Is(err, port.ErrSnapshotNotFound):
-		log.Printf("connect-section: snapshot not found section=%s", input.SectionID)
-		uc.cache.delete(input.SectionID, normalizedQuery)
-		snapshot = nil
-		err = nil
-	case err != nil:
-		log.Printf("connect-section: snapshot fetch failed section=%s query=%s err=%v", input.SectionID, queryKey, err)
-		if cached, ok := uc.cache.get(input.SectionID, normalizedQuery); ok && cached.snapshot != nil {
-			log.Printf("connect-section: using cached snapshot section=%s query=%s fetchedAt=%s", input.SectionID, queryKey, cached.fetchedAt.Format(time.RFC3339Nano))
-			uc.cache.set(input.SectionID, normalizedQuery, input.Token, cached.snapshot)
-			return &ConnectSectionOutput{Claims: claims, Snapshot: cached.snapshot}, nil
-		}
-		return nil, err
-	default:
-		uc.cache.set(input.SectionID, normalizedQuery, input.Token, snapshot)
-	}
-
-	if snapshot != nil {
-		log.Printf("connect-section: snapshot fetched section=%s payloadType=%T", input.SectionID, snapshot.Payload)
-	}
-
-	return &ConnectSectionOutput{Claims: claims, Snapshot: snapshot}, nil
+	return &ConnectSectionOutput{Claims: claims, Snapshot: nil}, nil
 }
 
 func (uc *ConnectSectionUseCase) RefreshSectionSnapshots(ctx context.Context, entity, sectionID string, broadcaster *BroadcastUseCase) {
@@ -99,67 +68,141 @@ func (uc *ConnectSectionUseCase) RefreshSectionSnapshots(ctx context.Context, en
 		return
 	}
 	for _, entry := range entries {
-		queryKey := canonicalQuery(entry.query)
-		snapshot, err := uc.SnapshotFetcher.FetchSection(ctx, entry.token, sectionID, cloneValues(entry.query))
-		switch {
-		case errors.Is(err, port.ErrSnapshotNotFound):
-			log.Printf("connect-section: refresh snapshot not found section=%s query=%s", sectionID, queryKey)
-			uc.cache.delete(sectionID, entry.query)
-			continue
-		case err != nil:
-			log.Printf("connect-section: refresh snapshot failed section=%s query=%s err=%v", sectionID, queryKey, err)
-			continue
+		switch entry.kind {
+		case cacheKindItem:
+			uc.refreshItem(ctx, entity, sectionID, entry, broadcaster)
+		case cacheKindList:
+			uc.refreshList(ctx, entity, sectionID, entry, broadcaster)
 		default:
-			uc.cache.set(sectionID, entry.query, entry.token, snapshot)
+			log.Printf("connect-section: unknown cache kind kind=%s section=%s", entry.kind, sectionID)
 		}
-
-		metadata := map[string]string{
-			"sectionId": sectionID,
-		}
-		for key, values := range entry.query {
-			if len(values) == 0 {
-				continue
-			}
-			metadata["query."+strings.ToLower(strings.TrimSpace(key))] = values[0]
-		}
-
-		message := &domain.Message{
-			Topic:      entity + ".snapshot",
-			Entity:     entity,
-			Action:     "snapshot",
-			ResourceID: sectionID,
-			Metadata:   metadata,
-			Data:       snapshot.Payload,
-			Timestamp:  time.Now().UTC(),
-		}
-		broadcaster.Execute(ctx, message)
-		log.Printf("connect-section: refreshed snapshot broadcast section=%s entity=%s query=%s", sectionID, entity, queryKey)
 	}
 }
 
-func normalizeQueryParams(raw url.Values) url.Values {
-	if raw == nil {
-		raw = url.Values{}
-	}
-	normalized := url.Values{}
-	for key, values := range raw {
-		trimmedKey := strings.TrimSpace(key)
-		if trimmedKey == "" || strings.EqualFold(trimmedKey, "token") {
-			continue
+func (uc *ConnectSectionUseCase) ListRestaurants(ctx context.Context, token, sectionID string, params port.SectionListOptions) (*domain.SectionSnapshot, port.SectionListOptions, error) {
+	options := port.NormalizeSectionListOptions(sectionID, params)
+	queryKey := canonicalListOptions(options)
+	log.Printf("connect-section: list request section=%s query=%s", sectionID, queryKey)
+
+	snapshot, err := uc.SnapshotFetcher.FetchSection(ctx, token, sectionID, options)
+	switch {
+	case errors.Is(err, port.ErrSnapshotNotFound):
+		log.Printf("connect-section: list not found section=%s query=%s", sectionID, queryKey)
+		uc.cache.delete(sectionID, cacheKindList, options, "")
+		return nil, options, err
+	case err != nil:
+		log.Printf("connect-section: list fetch failed section=%s query=%s err=%v", sectionID, queryKey, err)
+		if cached, ok := uc.cache.get(sectionID, cacheKindList, options, ""); ok && cached.snapshot != nil {
+			log.Printf("connect-section: serving cached list section=%s query=%s fetchedAt=%s", sectionID, queryKey, cached.fetchedAt.Format(time.RFC3339Nano))
+			return cached.snapshot, options, nil
 		}
-		for _, value := range values {
-			trimmedValue := strings.TrimSpace(value)
-			if trimmedValue == "" {
-				continue
-			}
-			normalized.Set(trimmedKey, trimmedValue)
+		return nil, options, err
+	default:
+		uc.cache.set(sectionID, cacheKindList, options, "", token, snapshot)
+	}
+
+	return snapshot, options, nil
+}
+
+func (uc *ConnectSectionUseCase) GetRestaurant(ctx context.Context, token, sectionID, restaurantID string) (*domain.SectionSnapshot, error) {
+	resource := strings.TrimSpace(restaurantID)
+	if resource == "" {
+		return nil, port.ErrSnapshotNotFound
+	}
+	log.Printf("connect-section: detail request section=%s restaurant=%s", sectionID, resource)
+
+	snapshot, err := uc.SnapshotFetcher.FetchRestaurant(ctx, token, resource)
+	switch {
+	case errors.Is(err, port.ErrSnapshotNotFound):
+		log.Printf("connect-section: detail not found section=%s restaurant=%s", sectionID, resource)
+		uc.cache.delete(sectionID, cacheKindItem, port.SectionListOptions{}, resource)
+		return nil, err
+	case err != nil:
+		log.Printf("connect-section: detail fetch failed section=%s restaurant=%s err=%v", sectionID, resource, err)
+		if cached, ok := uc.cache.get(sectionID, cacheKindItem, port.SectionListOptions{}, resource); ok && cached.snapshot != nil {
+			log.Printf("connect-section: serving cached detail section=%s restaurant=%s fetchedAt=%s", sectionID, resource, cached.fetchedAt.Format(time.RFC3339Nano))
+			return cached.snapshot, nil
 		}
+		return nil, err
+	default:
+		uc.cache.set(sectionID, cacheKindItem, port.SectionListOptions{}, resource, token, snapshot)
 	}
-	if normalized.Get("page") == "" {
-		normalized.Set("page", "1")
+
+	return snapshot, nil
+}
+
+func (uc *ConnectSectionUseCase) refreshList(ctx context.Context, entity, sectionID string, entry *snapshotCacheEntry, broadcaster *BroadcastUseCase) {
+	options := entry.listOptions
+	queryKey := canonicalListOptions(options)
+	snapshot, err := uc.SnapshotFetcher.FetchSection(ctx, entry.token, sectionID, options)
+	switch {
+	case errors.Is(err, port.ErrSnapshotNotFound):
+		log.Printf("connect-section: refresh list not found section=%s query=%s", sectionID, queryKey)
+		uc.cache.delete(sectionID, cacheKindList, options, "")
+		return
+	case err != nil:
+		log.Printf("connect-section: refresh list failed section=%s query=%s err=%v", sectionID, queryKey, err)
+		return
+	default:
+		uc.cache.set(sectionID, cacheKindList, options, "", entry.token, snapshot)
 	}
-	if normalized.Get("limit") == "" {
-		normalized.Set("limit", "20")
+
+	metadata := map[string]string{
+		"sectionId": sectionID,
 	}
-	return normalized
+	metadata["page"] = strconv.Itoa(options.Page)
+	metadata["limit"] = strconv.Itoa(options.Limit)
+	if strings.TrimSpace(options.Search) != "" {
+		metadata["search"] = options.Search
+	}
+	if options.SortBy != "" {
+		metadata["sortBy"] = options.SortBy
+	}
+	if options.SortOrder != "" {
+		metadata["sortOrder"] = options.SortOrder
+	}
+
+	message := &domain.Message{
+		Topic:      entity + ".list",
+		Entity:     entity,
+		Action:     "list",
+		ResourceID: sectionID,
+		Metadata:   metadata,
+		Data:       snapshot.Payload,
+		Timestamp:  time.Now().UTC(),
+	}
+	broadcaster.Execute(ctx, message)
+	log.Printf("connect-section: refreshed list broadcast section=%s entity=%s query=%s", sectionID, entity, queryKey)
+}
+
+func (uc *ConnectSectionUseCase) refreshItem(ctx context.Context, entity, sectionID string, entry *snapshotCacheEntry, broadcaster *BroadcastUseCase) {
+	snapshot, err := uc.SnapshotFetcher.FetchRestaurant(ctx, entry.token, entry.resourceID)
+	switch {
+	case errors.Is(err, port.ErrSnapshotNotFound):
+		log.Printf("connect-section: refresh detail not found section=%s restaurant=%s", sectionID, entry.resourceID)
+		uc.cache.delete(sectionID, cacheKindItem, port.SectionListOptions{}, entry.resourceID)
+		return
+	case err != nil:
+		log.Printf("connect-section: refresh detail failed section=%s restaurant=%s err=%v", sectionID, entry.resourceID, err)
+		return
+	default:
+		uc.cache.set(sectionID, cacheKindItem, port.SectionListOptions{}, entry.resourceID, entry.token, snapshot)
+	}
+
+	metadata := map[string]string{
+		"sectionId":    sectionID,
+		"restaurantId": entry.resourceID,
+	}
+
+	message := &domain.Message{
+		Topic:      entity + ".detail",
+		Entity:     entity,
+		Action:     "detail",
+		ResourceID: entry.resourceID,
+		Metadata:   metadata,
+		Data:       snapshot.Payload,
+		Timestamp:  time.Now().UTC(),
+	}
+	broadcaster.Execute(ctx, message)
+	log.Printf("connect-section: refreshed detail broadcast section=%s entity=%s restaurant=%s", sectionID, entity, entry.resourceID)
 }

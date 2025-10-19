@@ -2,9 +2,11 @@ package transport
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -60,11 +62,6 @@ func NewWebsocketHandler(
 		logger := c.Logger()
 		requestID := c.Response().Header().Get(echo.HeaderXRequestID)
 		peerIP := c.RealIP()
-		for key := range queryParams {
-			if strings.EqualFold(key, "token") {
-				queryParams.Del(key)
-			}
-		}
 
 		if section == "" {
 			log.Printf("ws handler: missing section path param tokenLen=%d", len(token))
@@ -76,7 +73,7 @@ func NewWebsocketHandler(
 		defer cancel()
 
 		log.Printf("ws handler: executing connect usecase section=%s tokenLen=%d", section, len(token))
-		output, err := connectUC.Execute(ctx, usecase.ConnectSectionInput{Token: token, SectionID: section, Query: queryParams})
+		output, err := connectUC.Execute(ctx, usecase.ConnectSectionInput{Token: token, SectionID: section})
 		if err != nil {
 			status := http.StatusInternalServerError
 			message := "unable to connect section"
@@ -124,7 +121,97 @@ func NewWebsocketHandler(
 		roles := claims.Roles
 		log.Printf("ws handler: upgrade success section=%s user=%s session=%s roles=%v", section, userID, sessionID, roles)
 
-		client := infrastructure.NewClient(hub, conn, userID, sessionID, section, 8)
+		commandHandler := func(cmdCtx context.Context, client *infrastructure.Client, cmd infrastructure.Command) {
+			action := strings.ToLower(strings.TrimSpace(cmd.Action))
+			switch action {
+			case "list_restaurants", "fetch_all", "list":
+				var payload struct {
+					Page      int    `json:"page"`
+					Limit     int    `json:"limit"`
+					Search    string `json:"search"`
+					SortBy    string `json:"sortBy"`
+					SortOrder string `json:"sortOrder"`
+				}
+				if len(cmd.Payload) > 0 {
+					if err := json.Unmarshal(cmd.Payload, &payload); err != nil {
+						log.Printf("ws handler: list payload decode failed section=%s err=%v", section, err)
+						sendCommandError(client, entity, section, "list", "invalid payload")
+						return
+					}
+				}
+				params := port.SectionListOptions{
+					Page:      payload.Page,
+					Limit:     payload.Limit,
+					Search:    payload.Search,
+					SortBy:    payload.SortBy,
+					SortOrder: payload.SortOrder,
+				}
+				snapshot, normalized, err := connectUC.ListRestaurants(cmdCtx, token, section, params)
+				if err != nil {
+					log.Printf("ws handler: list fetch failed section=%s err=%v", section, err)
+					sendCommandError(client, entity, section, "list", err.Error())
+					return
+				}
+				metadata := map[string]string{
+					"sectionId": section,
+					"page":      strconv.Itoa(normalized.Page),
+					"limit":     strconv.Itoa(normalized.Limit),
+				}
+				if trimmed := strings.TrimSpace(normalized.Search); trimmed != "" {
+					metadata["search"] = trimmed
+				}
+				if normalized.SortBy != "" {
+					metadata["sortBy"] = normalized.SortBy
+				}
+				if normalized.SortOrder != "" {
+					metadata["sortOrder"] = normalized.SortOrder
+				}
+				message := &domain.Message{
+					Topic:      entity + ".list",
+					Entity:     entity,
+					Action:     "list",
+					ResourceID: section,
+					Metadata:   metadata,
+					Data:       snapshot.Payload,
+					Timestamp:  time.Now().UTC(),
+				}
+				client.SendDomainMessage(message)
+			case "get_restaurant", "fetch_one", "detail":
+				var payload struct {
+					ID string `json:"id"`
+				}
+				if err := json.Unmarshal(cmd.Payload, &payload); err != nil || strings.TrimSpace(payload.ID) == "" {
+					log.Printf("ws handler: detail payload decode failed section=%s err=%v", section, err)
+					sendCommandError(client, entity, section, "detail", "invalid payload")
+					return
+				}
+				snapshot, err := connectUC.GetRestaurant(cmdCtx, token, section, payload.ID)
+				if err != nil {
+					log.Printf("ws handler: detail fetch failed section=%s restaurant=%s err=%v", section, payload.ID, err)
+					sendCommandError(client, entity, section, "detail", err.Error())
+					return
+				}
+				metadata := map[string]string{
+					"sectionId":    section,
+					"restaurantId": strings.TrimSpace(payload.ID),
+				}
+				message := &domain.Message{
+					Topic:      entity + ".detail",
+					Entity:     entity,
+					Action:     "detail",
+					ResourceID: strings.TrimSpace(payload.ID),
+					Metadata:   metadata,
+					Data:       snapshot.Payload,
+					Timestamp:  time.Now().UTC(),
+				}
+				client.SendDomainMessage(message)
+			default:
+				log.Printf("ws handler: unknown action section=%s action=%s", section, cmd.Action)
+				sendCommandError(client, entity, section, "unknown", "unsupported action")
+			}
+		}
+
+		client := infrastructure.NewClient(hub, conn, userID, sessionID, section, entity, token, 8, commandHandler)
 
 		topics := buildTopics(entity, allowedActions)
 		hub.AttachClient(client, topics)
@@ -152,24 +239,6 @@ func NewWebsocketHandler(
 		client.SendDomainMessage(connected)
 		log.Printf("ws handler: sent system.connected section=%s user=%s session=%s", section, userID, sessionID)
 
-		if output.Snapshot != nil {
-			snapshot := &domain.Message{
-				Topic:      entity + ".snapshot",
-				Entity:     entity,
-				Action:     "snapshot",
-				ResourceID: section,
-				Metadata: map[string]string{
-					"userId":    userID,
-					"sessionId": sessionID,
-					"sectionId": section,
-				},
-				Data:      output.Snapshot.Payload,
-				Timestamp: time.Now().UTC(),
-			}
-			client.SendDomainMessage(snapshot)
-			log.Printf("ws handler: sent snapshot section=%s user=%s session=%s payloadType=%T", section, userID, sessionID, output.Snapshot.Payload)
-		}
-
 		logger.Infof("ws connected entity=%s section=%s user=%s session=%s roles=%v ip=%s reqID=%s",
 			entity, section, userID, sessionID, roles, peerIP, requestID)
 
@@ -178,9 +247,12 @@ func NewWebsocketHandler(
 }
 
 func buildTopics(entity string, allowedActions []string) []string {
-	topics := []string{entity + ".snapshot"}
+	topics := []string{entity + ".snapshot", entity + ".list", entity + ".detail", entity + ".error"}
 	seen := map[string]struct{}{
 		topics[0]: {},
+		topics[1]: {},
+		topics[2]: {},
+		topics[3]: {},
 	}
 	for _, action := range allowedActions {
 		action = strings.TrimSpace(strings.ToLower(action))
@@ -195,4 +267,26 @@ func buildTopics(entity string, allowedActions []string) []string {
 		seen[topic] = struct{}{}
 	}
 	return topics
+}
+
+func sendCommandError(client *infrastructure.Client, entity, section, action, reason string) {
+	metadata := map[string]string{
+		"sectionId": section,
+		"action":    action,
+	}
+	if strings.TrimSpace(reason) != "" {
+		metadata["reason"] = reason
+	}
+	message := &domain.Message{
+		Topic:      entity + ".error",
+		Entity:     entity,
+		Action:     "error",
+		ResourceID: section,
+		Metadata:   metadata,
+		Data: map[string]string{
+			"error": reason,
+		},
+		Timestamp: time.Now().UTC(),
+	}
+	client.SendDomainMessage(message)
 }

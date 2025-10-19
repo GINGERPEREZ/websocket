@@ -19,17 +19,21 @@ type Client struct {
 	userID     string
 	sessionID  string
 	sectionID  string
+	entity     string
+	token      string
+	commandFn  func(context.Context, *Client, Command)
 	subscribed map[string]struct{}
 	closeOnce  sync.Once
 }
 
-type command struct {
-	Action string `json:"action"`
-	Topic  string `json:"topic"`
+type Command struct {
+	Action  string          `json:"action"`
+	Topic   string          `json:"topic,omitempty"`
+	Payload json.RawMessage `json:"payload,omitempty"`
 }
 
 // NewClient crea un cliente WebSocket con metadata de usuario y buffer configurable.
-func NewClient(hub *Hub, conn *websocket.Conn, userID, sessionID, sectionID string, buf int) *Client {
+func NewClient(hub *Hub, conn *websocket.Conn, userID, sessionID, sectionID, entity, token string, buf int, commandFn func(context.Context, *Client, Command)) *Client {
 	return &Client{
 		hub:        hub,
 		conn:       conn,
@@ -37,6 +41,9 @@ func NewClient(hub *Hub, conn *websocket.Conn, userID, sessionID, sectionID stri
 		userID:     userID,
 		sessionID:  sessionID,
 		sectionID:  strings.TrimSpace(sectionID),
+		entity:     strings.TrimSpace(entity),
+		token:      token,
+		commandFn:  commandFn,
 		subscribed: make(map[string]struct{}),
 	}
 }
@@ -101,7 +108,7 @@ func (c *Client) ReadPump() {
 	})
 	defer c.hub.detachClient(c)
 	for {
-		var cmd command
+		var cmd Command
 		_ = c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		if err := c.conn.ReadJSON(&cmd); err != nil {
 			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
@@ -113,7 +120,7 @@ func (c *Client) ReadPump() {
 	}
 }
 
-func (c *Client) handleCommand(cmd command) {
+func (c *Client) handleCommand(cmd Command) {
 	switch strings.ToLower(cmd.Action) {
 	case "subscribe":
 		if cmd.Topic != "" {
@@ -133,6 +140,14 @@ func (c *Client) handleCommand(cmd command) {
 			Timestamp: time.Now().UTC(),
 		}
 		c.SendDomainMessage(&ack)
+	default:
+		if c.commandFn != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			go func() {
+				defer cancel()
+				c.commandFn(ctx, c, cmd)
+			}()
+		}
 	}
 }
 

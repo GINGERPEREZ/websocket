@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"path"
+	"strconv"
 	"strings"
 
 	"mesaYaWs/internal/realtime/application/port"
@@ -23,7 +25,7 @@ func NewSectionSnapshotHTTPClient(baseURL string, client *http.Client) *SectionS
 	return &SectionSnapshotHTTPClient{rest: NewRESTClient(baseURL, client)}
 }
 
-func (c *SectionSnapshotHTTPClient) FetchSection(ctx context.Context, token, sectionID string, query url.Values) (*domain.SectionSnapshot, error) {
+func (c *SectionSnapshotHTTPClient) FetchSection(ctx context.Context, token, sectionID string, options port.SectionListOptions) (*domain.SectionSnapshot, error) {
 	sectionID = strings.TrimSpace(sectionID)
 	if sectionID == "" {
 		return nil, port.ErrSnapshotNotFound
@@ -41,15 +43,18 @@ func (c *SectionSnapshotHTTPClient) FetchSection(ctx context.Context, token, sec
 		req.Header.Set("Authorization", "Bearer "+trimmed)
 	}
 
-	finalQuery := cloneQuery(query)
-	if finalQuery == nil {
-		finalQuery = url.Values{}
+	normalized := port.NormalizeSectionListOptions(sectionID, options)
+	finalQuery := url.Values{}
+	finalQuery.Set("page", strconv.Itoa(normalized.Page))
+	finalQuery.Set("limit", strconv.Itoa(normalized.Limit))
+	if normalized.Search != "" {
+		finalQuery.Set("q", normalized.Search)
 	}
-	if finalQuery.Get("page") == "" {
-		finalQuery.Set("page", "1")
+	if normalized.SortBy != "" {
+		finalQuery.Set("sortBy", normalized.SortBy)
 	}
-	if finalQuery.Get("limit") == "" {
-		finalQuery.Set("limit", "20")
+	if normalized.SortOrder != "" {
+		finalQuery.Set("sortOrder", normalized.SortOrder)
 	}
 	req.URL.RawQuery = finalQuery.Encode()
 	log.Printf("snapshot-client: requesting url=%s", req.URL.String())
@@ -57,6 +62,50 @@ func (c *SectionSnapshotHTTPClient) FetchSection(ctx context.Context, token, sec
 	res, err := c.rest.Do(req)
 	if err != nil {
 		log.Printf("snapshot-client: request error section=%s err=%v", sectionID, err)
+		return nil, fmt.Errorf("snapshot request failed: %w", err)
+	}
+	defer res.Body.Close()
+	log.Printf("snapshot-client: response status=%d url=%s", res.StatusCode, req.URL.String())
+
+	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
+		return nil, port.ErrSnapshotForbidden
+	}
+	if res.StatusCode == http.StatusNotFound {
+		return nil, port.ErrSnapshotNotFound
+	}
+	if res.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
+		log.Printf("snapshot fetch error status=%d url=%s body=%s", res.StatusCode, req.URL.String(), strings.TrimSpace(string(body)))
+		return nil, fmt.Errorf("unexpected snapshot response %d", res.StatusCode)
+	}
+
+	return decodeSectionSnapshot(res.Body)
+}
+
+func (c *SectionSnapshotHTTPClient) FetchRestaurant(ctx context.Context, token, restaurantID string) (*domain.SectionSnapshot, error) {
+	resource := strings.TrimSpace(restaurantID)
+	if resource == "" {
+		return nil, port.ErrSnapshotNotFound
+	}
+	log.Printf("snapshot-client: start restaurant id=%s", resource)
+
+	endpoint := path.Join("/api/v1/restaurant", resource)
+	req, err := c.rest.NewRequest(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		log.Printf("snapshot-client: request build failed restaurant=%s err=%v", resource, err)
+		return nil, err
+	}
+
+	req.Header.Set("Accept", "application/json")
+	if trimmed := strings.TrimSpace(token); trimmed != "" {
+		req.Header.Set("Authorization", "Bearer "+trimmed)
+	}
+
+	log.Printf("snapshot-client: requesting url=%s", req.URL.String())
+
+	res, err := c.rest.Do(req)
+	if err != nil {
+		log.Printf("snapshot-client: request error restaurant=%s err=%v", resource, err)
 		return nil, fmt.Errorf("snapshot request failed: %w", err)
 	}
 	defer res.Body.Close()
@@ -96,18 +145,6 @@ func normalizeSnapshotPayload(payload interface{}) map[string]any {
 	default:
 		return map[string]any{"value": typed}
 	}
-}
-func cloneQuery(src url.Values) url.Values {
-	if src == nil {
-		return nil
-	}
-	dst := make(url.Values, len(src))
-	for key, values := range src {
-		copied := make([]string, len(values))
-		copy(copied, values)
-		dst[key] = copied
-	}
-	return dst
 }
 
 var _ port.SectionSnapshotFetcher = (*SectionSnapshotHTTPClient)(nil)
