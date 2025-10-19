@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log"
-	"strconv"
 	"strings"
 	"time"
 
@@ -79,9 +78,9 @@ func (uc *ConnectSectionUseCase) RefreshSectionSnapshots(ctx context.Context, en
 	}
 }
 
-func (uc *ConnectSectionUseCase) ListRestaurants(ctx context.Context, token, sectionID string, params port.SectionListOptions) (*domain.SectionSnapshot, port.SectionListOptions, error) {
-	options := port.NormalizeSectionListOptions(sectionID, params)
-	queryKey := canonicalListOptions(options)
+func (uc *ConnectSectionUseCase) ListRestaurants(ctx context.Context, token, sectionID string, params domain.PagedQuery) (*domain.SectionSnapshot, domain.PagedQuery, error) {
+	options := params.Normalize(sectionID)
+	queryKey := options.CanonicalKey()
 	log.Printf("connect-section: list request section=%s query=%s", sectionID, queryKey)
 
 	snapshot, err := uc.SnapshotFetcher.FetchSection(ctx, token, sectionID, options)
@@ -115,17 +114,17 @@ func (uc *ConnectSectionUseCase) GetRestaurant(ctx context.Context, token, secti
 	switch {
 	case errors.Is(err, port.ErrSnapshotNotFound):
 		log.Printf("connect-section: detail not found section=%s restaurant=%s", sectionID, resource)
-		uc.cache.delete(sectionID, cacheKindItem, port.SectionListOptions{}, resource)
+		uc.cache.delete(sectionID, cacheKindItem, domain.PagedQuery{}, resource)
 		return nil, err
 	case err != nil:
 		log.Printf("connect-section: detail fetch failed section=%s restaurant=%s err=%v", sectionID, resource, err)
-		if cached, ok := uc.cache.get(sectionID, cacheKindItem, port.SectionListOptions{}, resource); ok && cached.snapshot != nil {
+		if cached, ok := uc.cache.get(sectionID, cacheKindItem, domain.PagedQuery{}, resource); ok && cached.snapshot != nil {
 			log.Printf("connect-section: serving cached detail section=%s restaurant=%s fetchedAt=%s", sectionID, resource, cached.fetchedAt.Format(time.RFC3339Nano))
 			return cached.snapshot, nil
 		}
 		return nil, err
 	default:
-		uc.cache.set(sectionID, cacheKindItem, port.SectionListOptions{}, resource, token, snapshot)
+		uc.cache.set(sectionID, cacheKindItem, domain.PagedQuery{}, resource, token, snapshot)
 	}
 
 	return snapshot, nil
@@ -133,7 +132,7 @@ func (uc *ConnectSectionUseCase) GetRestaurant(ctx context.Context, token, secti
 
 func (uc *ConnectSectionUseCase) refreshList(ctx context.Context, entity, sectionID string, entry *snapshotCacheEntry, broadcaster *BroadcastUseCase) {
 	options := entry.listOptions
-	queryKey := canonicalListOptions(options)
+	queryKey := options.CanonicalKey()
 	snapshot, err := uc.SnapshotFetcher.FetchSection(ctx, entry.token, sectionID, options)
 	switch {
 	case errors.Is(err, port.ErrSnapshotNotFound):
@@ -147,20 +146,7 @@ func (uc *ConnectSectionUseCase) refreshList(ctx context.Context, entity, sectio
 		uc.cache.set(sectionID, cacheKindList, options, "", entry.token, snapshot)
 	}
 
-	metadata := map[string]string{
-		"sectionId": sectionID,
-	}
-	metadata["page"] = strconv.Itoa(options.Page)
-	metadata["limit"] = strconv.Itoa(options.Limit)
-	if strings.TrimSpace(options.Search) != "" {
-		metadata["search"] = options.Search
-	}
-	if options.SortBy != "" {
-		metadata["sortBy"] = options.SortBy
-	}
-	if options.SortOrder != "" {
-		metadata["sortOrder"] = options.SortOrder
-	}
+	metadata := options.Metadata(sectionID)
 
 	message := &domain.Message{
 		Topic:      entity + ".list",
@@ -180,13 +166,13 @@ func (uc *ConnectSectionUseCase) refreshItem(ctx context.Context, entity, sectio
 	switch {
 	case errors.Is(err, port.ErrSnapshotNotFound):
 		log.Printf("connect-section: refresh detail not found section=%s restaurant=%s", sectionID, entry.resourceID)
-		uc.cache.delete(sectionID, cacheKindItem, port.SectionListOptions{}, entry.resourceID)
+		uc.cache.delete(sectionID, cacheKindItem, domain.PagedQuery{}, entry.resourceID)
 		return
 	case err != nil:
 		log.Printf("connect-section: refresh detail failed section=%s restaurant=%s err=%v", sectionID, entry.resourceID, err)
 		return
 	default:
-		uc.cache.set(sectionID, cacheKindItem, port.SectionListOptions{}, entry.resourceID, entry.token, snapshot)
+		uc.cache.set(sectionID, cacheKindItem, domain.PagedQuery{}, entry.resourceID, entry.token, snapshot)
 	}
 
 	metadata := map[string]string{

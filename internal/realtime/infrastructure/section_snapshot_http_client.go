@@ -7,9 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"path"
-	"strconv"
 	"strings"
 
 	"mesaYaWs/internal/realtime/application/port"
@@ -25,7 +23,7 @@ func NewSectionSnapshotHTTPClient(baseURL string, client *http.Client) *SectionS
 	return &SectionSnapshotHTTPClient{rest: NewRESTClient(baseURL, client)}
 }
 
-func (c *SectionSnapshotHTTPClient) FetchSection(ctx context.Context, token, sectionID string, options port.SectionListOptions) (*domain.SectionSnapshot, error) {
+func (c *SectionSnapshotHTTPClient) FetchSection(ctx context.Context, token, sectionID string, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
 	sectionID = strings.TrimSpace(sectionID)
 	if sectionID == "" {
 		return nil, port.ErrSnapshotNotFound
@@ -43,20 +41,7 @@ func (c *SectionSnapshotHTTPClient) FetchSection(ctx context.Context, token, sec
 		req.Header.Set("Authorization", "Bearer "+trimmed)
 	}
 
-	normalized := port.NormalizeSectionListOptions(sectionID, options)
-	finalQuery := url.Values{}
-	finalQuery.Set("page", strconv.Itoa(normalized.Page))
-	finalQuery.Set("limit", strconv.Itoa(normalized.Limit))
-	if normalized.Search != "" {
-		finalQuery.Set("q", normalized.Search)
-	}
-	if normalized.SortBy != "" {
-		finalQuery.Set("sortBy", normalized.SortBy)
-	}
-	if normalized.SortOrder != "" {
-		finalQuery.Set("sortOrder", normalized.SortOrder)
-	}
-	req.URL.RawQuery = finalQuery.Encode()
+	req.URL.RawQuery = query.ToURLValues(sectionID).Encode()
 	log.Printf("snapshot-client: requesting url=%s", req.URL.String())
 
 	res, err := c.rest.Do(req)

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -139,7 +138,7 @@ func NewWebsocketHandler(
 						return
 					}
 				}
-				params := port.SectionListOptions{
+				params := domain.PagedQuery{
 					Page:      payload.Page,
 					Limit:     payload.Limit,
 					Search:    payload.Search,
@@ -152,20 +151,7 @@ func NewWebsocketHandler(
 					sendCommandError(client, entity, section, "list", err.Error())
 					return
 				}
-				metadata := map[string]string{
-					"sectionId": section,
-					"page":      strconv.Itoa(normalized.Page),
-					"limit":     strconv.Itoa(normalized.Limit),
-				}
-				if trimmed := strings.TrimSpace(normalized.Search); trimmed != "" {
-					metadata["search"] = trimmed
-				}
-				if normalized.SortBy != "" {
-					metadata["sortBy"] = normalized.SortBy
-				}
-				if normalized.SortOrder != "" {
-					metadata["sortOrder"] = normalized.SortOrder
-				}
+				metadata := normalized.Metadata(section)
 				message := &domain.Message{
 					Topic:      entity + ".list",
 					Entity:     entity,

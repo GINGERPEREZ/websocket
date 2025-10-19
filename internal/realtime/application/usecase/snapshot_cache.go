@@ -1,12 +1,10 @@
 package usecase
 
 import (
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"mesaYaWs/internal/realtime/application/port"
 	"mesaYaWs/internal/realtime/domain"
 )
 
@@ -25,7 +23,7 @@ type snapshotCacheEntry struct {
 	sectionID   string
 	kind        string
 	key         string
-	listOptions port.SectionListOptions
+	listOptions domain.PagedQuery
 	resourceID  string
 	token       string
 	snapshot    *domain.SectionSnapshot
@@ -36,7 +34,7 @@ func newSnapshotCache() *snapshotCache {
 	return &snapshotCache{entries: make(map[string]map[string]*snapshotCacheEntry)}
 }
 
-func (c *snapshotCache) set(sectionID, kind string, options port.SectionListOptions, resourceID, token string, snapshot *domain.SectionSnapshot) {
+func (c *snapshotCache) set(sectionID, kind string, options domain.PagedQuery, resourceID, token string, snapshot *domain.SectionSnapshot) {
 	sectionID = strings.TrimSpace(sectionID)
 	if sectionID == "" {
 		return
@@ -59,7 +57,7 @@ func (c *snapshotCache) set(sectionID, kind string, options port.SectionListOpti
 	}
 }
 
-func (c *snapshotCache) get(sectionID, kind string, options port.SectionListOptions, resourceID string) (*snapshotCacheEntry, bool) {
+func (c *snapshotCache) get(sectionID, kind string, options domain.PagedQuery, resourceID string) (*snapshotCacheEntry, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	sec := c.entries[strings.TrimSpace(sectionID)]
@@ -74,7 +72,7 @@ func (c *snapshotCache) get(sectionID, kind string, options port.SectionListOpti
 	return entry.clone(), true
 }
 
-func (c *snapshotCache) delete(sectionID, kind string, options port.SectionListOptions, resourceID string) {
+func (c *snapshotCache) delete(sectionID, kind string, options domain.PagedQuery, resourceID string) {
 	sectionID = strings.TrimSpace(sectionID)
 	if sectionID == "" {
 		return
@@ -112,45 +110,11 @@ func (e *snapshotCacheEntry) clone() *snapshotCacheEntry {
 	return &cloned
 }
 
-func cacheEntryKey(kind string, options port.SectionListOptions, resourceID string) string {
+func cacheEntryKey(kind string, options domain.PagedQuery, resourceID string) string {
 	switch strings.ToLower(kind) {
 	case cacheKindItem:
 		return cacheKindItem + cacheDelimiter + strings.TrimSpace(resourceID)
 	default:
-		return cacheKindList + cacheDelimiter + canonicalListOptions(options)
+		return cacheKindList + cacheDelimiter + options.CanonicalKey()
 	}
-}
-
-func canonicalListOptions(options port.SectionListOptions) string {
-	page := options.Page
-	if page <= 0 {
-		page = 1
-	}
-
-	limit := options.Limit
-	if limit <= 0 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
-	}
-
-	search := strings.ToLower(strings.TrimSpace(options.Search))
-	sortBy := strings.ToLower(strings.TrimSpace(options.SortBy))
-	sortOrder := strings.ToUpper(strings.TrimSpace(options.SortOrder))
-
-	var builder strings.Builder
-	builder.Grow(len(search) + len(sortBy) + len(sortOrder) + 32)
-	builder.WriteString("page=")
-	builder.WriteString(strconv.Itoa(page))
-	builder.WriteString("&limit=")
-	builder.WriteString(strconv.Itoa(limit))
-	builder.WriteString("&search=")
-	builder.WriteString(search)
-	builder.WriteString("&sortBy=")
-	builder.WriteString(sortBy)
-	builder.WriteString("&sortOrder=")
-	builder.WriteString(sortOrder)
-
-	return builder.String()
 }
