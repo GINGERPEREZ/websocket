@@ -90,16 +90,3 @@ func BuildRestaurantDetail(payload any) (*Restaurant, bool) {
 	return &resto, true
 }
 
-func mapFromPayload(value any) map[string]any {
-	if value == nil {
-		return nil
-	}
-	if typed, ok := value.(map[string]any); ok {
-		// If the payload uses a data envelope we unwrap it.
-		if data, ok := typed["data"].(map[string]any); ok {
-			return data
-		}
-		return typed
-	}
-	return nil
-}

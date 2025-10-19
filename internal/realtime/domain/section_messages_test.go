@@ -21,6 +21,30 @@ func TestBuildDetailMessageIncludesDaysOpenMetadata(t *testing.T) {
 			DaysOpen:     []DayOfWeek{Monday, Saturday},
 			Subscription: 3,
 		},
+		TableList: &TableList{
+			Items: []Table{
+				{ID: "table-1", State: TableStateAvailable},
+				{ID: "table-2", State: TableStateReserved},
+				{ID: "table-3", State: TableStateCleaning},
+			},
+		},
+		Table: &Table{ID: "table-2", State: TableStateReserved, Number: 12, Capacity: 4},
+		ReservationList: &ReservationList{
+			Items: []Reservation{
+				{ID: "res-1", Status: ReservationStatusPending},
+				{ID: "res-2", Status: ReservationStatusConfirmed},
+				{ID: "res-3", Status: ReservationStatusCancelled},
+				{ID: "res-4", Status: ReservationStatusNoShow},
+			},
+		},
+		Reservation: &Reservation{
+			ID:              "res-2",
+			TableID:         "table-2",
+			Status:          ReservationStatusConfirmed,
+			Guests:          5,
+			ReservationDate: "2025-10-20",
+			ReservationTime: "20:30",
+		},
 	}
 
 	at := time.Date(2025, time.October, 19, 15, 4, 0, 0, time.UTC)
@@ -66,6 +90,57 @@ func TestBuildDetailMessageIncludesDaysOpenMetadata(t *testing.T) {
 	}
 	if md["subscriptionId"] != "3" {
 		t.Fatalf("subscriptionId metadata mismatch: %s", md["subscriptionId"])
+	}
+	if md["tablesCount"] != "3" {
+		t.Fatalf("tablesCount metadata mismatch: %s", md["tablesCount"])
+	}
+	if md["tablesAvailable"] != "1" {
+		t.Fatalf("tablesAvailable metadata mismatch: %s", md["tablesAvailable"])
+	}
+	if md["tablesReserved"] != "1" {
+		t.Fatalf("tablesReserved metadata mismatch: %s", md["tablesReserved"])
+	}
+	if md["tablesCleaning"] != "1" {
+		t.Fatalf("tablesCleaning metadata mismatch: %s", md["tablesCleaning"])
+	}
+	if md["tableState"] != "RESERVED" {
+		t.Fatalf("tableState metadata mismatch: %s", md["tableState"])
+	}
+	if md["tableNumber"] != "12" {
+		t.Fatalf("tableNumber metadata mismatch: %s", md["tableNumber"])
+	}
+	if md["tableCapacity"] != "4" {
+		t.Fatalf("tableCapacity metadata mismatch: %s", md["tableCapacity"])
+	}
+	if md["reservationsCount"] != "4" {
+		t.Fatalf("reservationsCount metadata mismatch: %s", md["reservationsCount"])
+	}
+	if md["reservationsPending"] != "1" {
+		t.Fatalf("reservationsPending metadata mismatch: %s", md["reservationsPending"])
+	}
+	if md["reservationsConfirmed"] != "1" {
+		t.Fatalf("reservationsConfirmed metadata mismatch: %s", md["reservationsConfirmed"])
+	}
+	if md["reservationsCancelled"] != "1" {
+		t.Fatalf("reservationsCancelled metadata mismatch: %s", md["reservationsCancelled"])
+	}
+	if md["reservationsNoShow"] != "1" {
+		t.Fatalf("reservationsNoShow metadata mismatch: %s", md["reservationsNoShow"])
+	}
+	if md["reservationStatus"] != "CONFIRMED" {
+		t.Fatalf("reservationStatus metadata mismatch: %s", md["reservationStatus"])
+	}
+	if md["reservationGuests"] != "5" {
+		t.Fatalf("reservationGuests metadata mismatch: %s", md["reservationGuests"])
+	}
+	if md["reservationDate"] != "2025-10-20" {
+		t.Fatalf("reservationDate metadata mismatch: %s", md["reservationDate"])
+	}
+	if md["reservationTime"] != "20:30" {
+		t.Fatalf("reservationTime metadata mismatch: %s", md["reservationTime"])
+	}
+	if md["reservationTableId"] != "table-2" {
+		t.Fatalf("reservationTableId metadata mismatch: %s", md["reservationTableId"])
 	}
 }
 

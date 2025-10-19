@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -48,7 +48,7 @@ func NewWebsocketHandler(
 		if token == "" {
 			token = strings.TrimSpace(queryParams.Get("token"))
 			if token != "" {
-				log.Printf("ws handler: token sourced from query section=%s tokenLen=%d", section, len(token))
+				slog.Debug("ws handler token sourced from query", slog.String("entity", entity), slog.String("sectionId", section), slog.Int("tokenLen", len(token)))
 			}
 		}
 		if token == "" {

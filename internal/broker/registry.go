@@ -10,6 +10,7 @@ func StartKafkaConsumers(
 	ctx context.Context,
 	registry *infrastructure.HandlerRegistry,
 	brokers []string,
+	groupID string,
 	topics []string,
 ) {
 	if len(brokers) == 0 {
@@ -19,7 +20,7 @@ func StartKafkaConsumers(
 	}
 	for _, topic := range topics {
 		go func(tp string) {
-			consumer := NewKafkaConsumer(brokers, "realtime-group", tp)
+			consumer := NewKafkaConsumer(brokers, groupID, tp)
 			consumer.Consume(ctx, func(msg *domain.Message) error {
 				return registry.Dispatch(ctx, msg)
 			})

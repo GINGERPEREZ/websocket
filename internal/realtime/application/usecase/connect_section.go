@@ -3,7 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -49,14 +49,14 @@ func (uc *ConnectSectionUseCase) Execute(ctx context.Context, input ConnectSecti
 		return nil, ErrMissingSection
 	}
 
-	log.Printf("connect-section: validating token section=%s", input.SectionID)
+	slog.Info("connect-section validating token", slog.String("sectionId", input.SectionID))
 
 	claims, err := uc.Validator.Validate(input.Token)
 	if err != nil {
-		log.Printf("connect-section: token validation failed section=%s err=%v", input.SectionID, err)
+		slog.Warn("connect-section token validation failed", slog.String("sectionId", input.SectionID), slog.Any("error", err))
 		return nil, err
 	}
-	log.Printf("connect-section: token valid section=%s subject=%s session=%s roles=%v", input.SectionID, claims.RegisteredClaims.Subject, claims.SessionID, claims.Roles)
+	slog.Info("connect-section token valid", slog.String("sectionId", input.SectionID), slog.String("subject", claims.RegisteredClaims.Subject), slog.String("sessionId", claims.SessionID), slog.Any("roles", claims.Roles))
 
 	return &ConnectSectionOutput{Claims: claims, Snapshot: nil}, nil
 }
@@ -73,7 +73,7 @@ func (uc *ConnectSectionUseCase) RefreshSectionSnapshots(ctx context.Context, en
 		case cacheKindList:
 			uc.refreshList(ctx, entity, sectionID, entry, broadcaster)
 		default:
-			log.Printf("connect-section: unknown cache kind kind=%s section=%s", entry.kind, sectionID)
+			slog.Warn("connect-section unknown cache kind", slog.String("kind", entry.kind), slog.String("sectionId", sectionID))
 		}
 	}
 }
@@ -81,18 +81,18 @@ func (uc *ConnectSectionUseCase) RefreshSectionSnapshots(ctx context.Context, en
 func (uc *ConnectSectionUseCase) ListRestaurants(ctx context.Context, token, sectionID string, params domain.PagedQuery) (*domain.SectionSnapshot, domain.PagedQuery, error) {
 	options := params.Normalize(sectionID)
 	queryKey := options.CanonicalKey()
-	log.Printf("connect-section: list request section=%s query=%s", sectionID, queryKey)
+	slog.Debug("connect-section list request", slog.String("sectionId", sectionID), slog.String("queryKey", queryKey))
 
 	snapshot, err := uc.SnapshotFetcher.FetchSection(ctx, token, sectionID, options)
 	switch {
 	case errors.Is(err, port.ErrSnapshotNotFound):
-		log.Printf("connect-section: list not found section=%s query=%s", sectionID, queryKey)
+		slog.Warn("connect-section list not found", slog.String("sectionId", sectionID), slog.String("queryKey", queryKey))
 		uc.cache.delete(sectionID, cacheKindList, options, "")
 		return nil, options, err
 	case err != nil:
-		log.Printf("connect-section: list fetch failed section=%s query=%s err=%v", sectionID, queryKey, err)
+		slog.Error("connect-section list fetch failed", slog.String("sectionId", sectionID), slog.String("queryKey", queryKey), slog.Any("error", err))
 		if cached, ok := uc.cache.get(sectionID, cacheKindList, options, ""); ok && cached.snapshot != nil {
-			log.Printf("connect-section: serving cached list section=%s query=%s fetchedAt=%s", sectionID, queryKey, cached.fetchedAt.Format(time.RFC3339Nano))
+			slog.Info("connect-section serving cached list", slog.String("sectionId", sectionID), slog.String("queryKey", queryKey), slog.Time("fetchedAt", cached.fetchedAt))
 			return cached.snapshot, options, nil
 		}
 		return nil, options, err
@@ -108,18 +108,18 @@ func (uc *ConnectSectionUseCase) GetRestaurant(ctx context.Context, token, secti
 	if resource == "" {
 		return nil, port.ErrSnapshotNotFound
 	}
-	log.Printf("connect-section: detail request section=%s restaurant=%s", sectionID, resource)
+	slog.Debug("connect-section detail request", slog.String("sectionId", sectionID), slog.String("restaurantId", resource))
 
 	snapshot, err := uc.SnapshotFetcher.FetchRestaurant(ctx, token, resource)
 	switch {
 	case errors.Is(err, port.ErrSnapshotNotFound):
-		log.Printf("connect-section: detail not found section=%s restaurant=%s", sectionID, resource)
+		slog.Warn("connect-section detail not found", slog.String("sectionId", sectionID), slog.String("restaurantId", resource))
 		uc.cache.delete(sectionID, cacheKindItem, domain.PagedQuery{}, resource)
 		return nil, err
 	case err != nil:
-		log.Printf("connect-section: detail fetch failed section=%s restaurant=%s err=%v", sectionID, resource, err)
+		slog.Error("connect-section detail fetch failed", slog.String("sectionId", sectionID), slog.String("restaurantId", resource), slog.Any("error", err))
 		if cached, ok := uc.cache.get(sectionID, cacheKindItem, domain.PagedQuery{}, resource); ok && cached.snapshot != nil {
-			log.Printf("connect-section: serving cached detail section=%s restaurant=%s fetchedAt=%s", sectionID, resource, cached.fetchedAt.Format(time.RFC3339Nano))
+			slog.Info("connect-section serving cached detail", slog.String("sectionId", sectionID), slog.String("restaurantId", resource), slog.Time("fetchedAt", cached.fetchedAt))
 			return cached.snapshot, nil
 		}
 		return nil, err
@@ -136,11 +136,11 @@ func (uc *ConnectSectionUseCase) refreshList(ctx context.Context, entity, sectio
 	snapshot, err := uc.SnapshotFetcher.FetchSection(ctx, entry.token, sectionID, options)
 	switch {
 	case errors.Is(err, port.ErrSnapshotNotFound):
-		log.Printf("connect-section: refresh list not found section=%s query=%s", sectionID, queryKey)
+		slog.Warn("connect-section refresh list not found", slog.String("sectionId", sectionID), slog.String("queryKey", queryKey))
 		uc.cache.delete(sectionID, cacheKindList, options, "")
 		return
 	case err != nil:
-		log.Printf("connect-section: refresh list failed section=%s query=%s err=%v", sectionID, queryKey, err)
+		slog.Error("connect-section refresh list failed", slog.String("sectionId", sectionID), slog.String("queryKey", queryKey), slog.Any("error", err))
 		return
 	default:
 		uc.cache.set(sectionID, cacheKindList, options, "", entry.token, snapshot)
@@ -148,22 +148,22 @@ func (uc *ConnectSectionUseCase) refreshList(ctx context.Context, entity, sectio
 
 	message := domain.BuildListMessage(entity, sectionID, snapshot, options, time.Now().UTC())
 	if message == nil {
-		log.Printf("connect-section: refresh list skipped empty snapshot section=%s query=%s", sectionID, queryKey)
+		slog.Debug("connect-section refresh list skipped", slog.String("sectionId", sectionID), slog.String("queryKey", queryKey))
 		return
 	}
 	broadcaster.Execute(ctx, message)
-	log.Printf("connect-section: refreshed list broadcast section=%s entity=%s query=%s", sectionID, entity, queryKey)
+	slog.Info("connect-section refreshed list broadcast", slog.String("sectionId", sectionID), slog.String("entity", entity), slog.String("queryKey", queryKey))
 }
 
 func (uc *ConnectSectionUseCase) refreshItem(ctx context.Context, entity, sectionID string, entry *snapshotCacheEntry, broadcaster *BroadcastUseCase) {
 	snapshot, err := uc.SnapshotFetcher.FetchRestaurant(ctx, entry.token, entry.resourceID)
 	switch {
 	case errors.Is(err, port.ErrSnapshotNotFound):
-		log.Printf("connect-section: refresh detail not found section=%s restaurant=%s", sectionID, entry.resourceID)
+		slog.Warn("connect-section refresh detail not found", slog.String("sectionId", sectionID), slog.String("restaurantId", entry.resourceID))
 		uc.cache.delete(sectionID, cacheKindItem, domain.PagedQuery{}, entry.resourceID)
 		return
 	case err != nil:
-		log.Printf("connect-section: refresh detail failed section=%s restaurant=%s err=%v", sectionID, entry.resourceID, err)
+		slog.Error("connect-section refresh detail failed", slog.String("sectionId", sectionID), slog.String("restaurantId", entry.resourceID), slog.Any("error", err))
 		return
 	default:
 		uc.cache.set(sectionID, cacheKindItem, domain.PagedQuery{}, entry.resourceID, entry.token, snapshot)
@@ -171,11 +171,11 @@ func (uc *ConnectSectionUseCase) refreshItem(ctx context.Context, entity, sectio
 
 	message := domain.BuildDetailMessage(entity, sectionID, entry.resourceID, snapshot, time.Now().UTC())
 	if message == nil {
-		log.Printf("connect-section: refresh detail skipped empty snapshot section=%s restaurant=%s", sectionID, entry.resourceID)
+		slog.Debug("connect-section refresh detail skipped", slog.String("sectionId", sectionID), slog.String("restaurantId", entry.resourceID))
 		return
 	}
 	broadcaster.Execute(ctx, message)
-	log.Printf("connect-section: refreshed detail broadcast section=%s entity=%s restaurant=%s", sectionID, entity, entry.resourceID)
+	slog.Info("connect-section refreshed detail broadcast", slog.String("sectionId", sectionID), slog.String("entity", entity), slog.String("restaurantId", entry.resourceID))
 }
 
 // HandleListRestaurantsCommand executes the list command end-to-end and returns a domain message ready for broadcasting.
