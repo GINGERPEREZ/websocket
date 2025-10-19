@@ -41,6 +41,9 @@ This note captures the ubiquitous language we will lean on while refactoring the
 - `RestaurantId`, `SectionId`, `TableId`, `ReservationId`, `ReviewId`, `UserId`: value objects wrapping UUIDs to avoid accidental mixups.
 - `Schedule`: value object encapsulating `openTime`/`closeTime` with validation that spans a single day. Enforced by `internal/realtime/domain/schedule.go`.
 - `DayOfWeek`: enumerates allowed opening days (`MONDAY`..`SUNDAY`) with normalization helpers in `internal/realtime/domain/day_of_week.go`.
+- `RestaurantStatus`: normalises `ACTIVE`/`INACTIVE` lifecycle flags from REST payloads (`internal/realtime/domain/restaurant_status.go`).
+- `TableState`: realtime availability flags for tables (`AVAILABLE`, `RESERVED`, `SEATED`, `BLOCKED`, `CLEANING`) defined in `internal/realtime/domain/table_state.go`.
+- `ReservationStatus`: booking lifecycle (`PENDING`, `CONFIRMED`, `SEATED`, `COMPLETED`, `CANCELLED`, `NO_SHOW`) defined in `internal/realtime/domain/reservation_status.go`.
 - `PagedQuery`: value object standardising `page`, `limit`, `search`, `sortBy`, `sortOrder` (already partially encoded in `SectionListOptions`).
 - `GeoLocation`: free-form string today; candidate for future refinement.
 - `Capacity`: positive integer; potential reuse across restaurants and tables.

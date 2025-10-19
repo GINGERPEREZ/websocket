@@ -54,6 +54,9 @@ func BuildDetailMessage(entity, sectionID, restaurantID string, snapshot *Sectio
 		if name := strings.TrimSpace(snapshot.Restaurant.Name); name != "" {
 			metadata["restaurantName"] = name
 		}
+		if status := strings.TrimSpace(string(snapshot.Restaurant.Status)); status != "" {
+			metadata["restaurantStatus"] = status
+		}
 		schedule := snapshot.Restaurant.Schedule
 		if !schedule.Open.IsZero() {
 			metadata["openTime"] = schedule.Open.Format("15:04")

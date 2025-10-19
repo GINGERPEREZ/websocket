@@ -10,6 +10,7 @@ type Restaurant struct {
 	Location      string
 	Schedule      Schedule
 	DaysOpen      []DayOfWeek
+	Status        RestaurantStatus
 	TotalCapacity int
 	Subscription  int
 	ImageID       int
@@ -35,6 +36,7 @@ func NormalizeRestaurant(raw map[string]any) (Restaurant, bool) {
 		Description:   asString(raw["description"]),
 		Location:      asString(raw["location"]),
 		DaysOpen:      NormalizeDaysOpen(raw["daysOpen"]),
+		Status:        NormalizeRestaurantStatus(raw["status"]),
 		TotalCapacity: asInt(raw["totalCapacity"]),
 		Subscription:  asInt(raw["subscriptionId"]),
 		ImageID:       asInt(raw["imageId"]),

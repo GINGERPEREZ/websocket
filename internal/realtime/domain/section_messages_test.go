@@ -11,8 +11,9 @@ func TestBuildDetailMessageIncludesDaysOpenMetadata(t *testing.T) {
 	snapshot := &SectionSnapshot{
 		Payload: map[string]any{"id": "rest-1"},
 		Restaurant: &Restaurant{
-			ID:   "rest-1",
-			Name: "  Fancy Place  ",
+			ID:     "rest-1",
+			Name:   "  Fancy Place  ",
+			Status: RestaurantStatusActive,
 			Schedule: Schedule{
 				Open:  open,
 				Close: close,
@@ -50,6 +51,9 @@ func TestBuildDetailMessageIncludesDaysOpenMetadata(t *testing.T) {
 	}
 	if md["daysOpen"] != "MONDAY,SATURDAY" {
 		t.Fatalf("daysOpen metadata mismatch: %s", md["daysOpen"])
+	}
+	if md["restaurantStatus"] != "ACTIVE" {
+		t.Fatalf("restaurantStatus metadata mismatch: %s", md["restaurantStatus"])
 	}
 	if md["openTime"] != "09:00" {
 		t.Fatalf("openTime metadata mismatch: %s", md["openTime"])
