@@ -3,7 +3,7 @@ package infrastructure
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"mesaYaWs/internal/realtime/domain"
 	"strings"
 	"sync"
@@ -66,13 +66,13 @@ func (c *Client) close() {
 func (c *Client) SendDomainMessage(msg *domain.Message) {
 	data, err := json.Marshal(msg)
 	if err != nil {
-		log.Printf("websocket marshal error: %v", err)
+		slog.Error("websocket marshal error", slog.Any("error", err))
 		return
 	}
 	select {
 	case c.send <- data:
 	default:
-		log.Printf("websocket send buffer full for user=%s session=%s section=%s", c.userID, c.sessionID, c.sectionID)
+		slog.Warn("websocket send buffer full", slog.String("userId", c.userID), slog.String("sessionId", c.sessionID), slog.String("sectionId", c.sectionID))
 		go c.hub.detachClient(c)
 	}
 }
@@ -88,12 +88,12 @@ func (c *Client) WritePump() {
 				return
 			}
 			if err := c.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
-				log.Printf("websocket write error: %v", err)
+				slog.Warn("websocket write error", slog.Any("error", err))
 				return
 			}
 		case <-ping.C:
 			if err := c.conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
-				log.Printf("websocket ping error: %v", err)
+				slog.Warn("websocket ping error", slog.Any("error", err))
 				return
 			}
 		}
@@ -112,7 +112,7 @@ func (c *Client) ReadPump() {
 		_ = c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		if err := c.conn.ReadJSON(&cmd); err != nil {
 			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-				log.Printf("websocket read error user=%s session=%s section=%s: %v", c.userID, c.sessionID, c.sectionID, err)
+				slog.Warn("websocket read error", slog.String("userId", c.userID), slog.String("sessionId", c.sessionID), slog.String("sectionId", c.sectionID), slog.Any("error", err))
 			}
 			return
 		}
@@ -125,12 +125,12 @@ func (c *Client) handleCommand(cmd Command) {
 	case "subscribe":
 		if cmd.Topic != "" {
 			c.hub.subscribe(c, cmd.Topic)
-			log.Printf("ws subscribe user=%s session=%s section=%s topic=%s", c.userID, c.sessionID, c.sectionID, cmd.Topic)
+			slog.Debug("ws subscribe", slog.String("userId", c.userID), slog.String("sessionId", c.sessionID), slog.String("sectionId", c.sectionID), slog.String("topic", cmd.Topic))
 		}
 	case "unsubscribe":
 		if cmd.Topic != "" {
 			c.hub.unsubscribe(c, cmd.Topic)
-			log.Printf("ws unsubscribe user=%s session=%s section=%s topic=%s", c.userID, c.sessionID, c.sectionID, cmd.Topic)
+			slog.Debug("ws unsubscribe", slog.String("userId", c.userID), slog.String("sessionId", c.sessionID), slog.String("sectionId", c.sectionID), slog.String("topic", cmd.Topic))
 		}
 	case "ping":
 		ack := domain.Message{
@@ -171,7 +171,7 @@ func (h *Hub) registerClient(c *Client) {
 		h.detachLocked(existing)
 	}
 	h.clients[c.key()] = c
-	log.Printf("ws client registered user=%s session=%s section=%s", c.userID, c.sessionID, c.sectionID)
+	slog.Info("ws client registered", slog.String("userId", c.userID), slog.String("sessionId", c.sessionID), slog.String("sectionId", c.sectionID))
 }
 
 func (h *Hub) subscribe(c *Client, topic string) {
@@ -194,7 +194,7 @@ func (h *Hub) unsubscribe(c *Client, topic string) {
 		}
 	}
 	delete(c.subscribed, topic)
-	log.Printf("ws client unsubscribed user=%s session=%s section=%s topic=%s", c.userID, c.sessionID, c.sectionID, topic)
+	slog.Debug("ws client unsubscribed", slog.String("userId", c.userID), slog.String("sessionId", c.sessionID), slog.String("sectionId", c.sectionID), slog.String("topic", topic))
 }
 
 func (h *Hub) detachClient(c *Client) {
@@ -217,7 +217,7 @@ func (h *Hub) detachLocked(c *Client) {
 	}
 	delete(h.clients, c.key())
 	c.close()
-	log.Printf("ws client detached user=%s session=%s section=%s", c.userID, c.sessionID, c.sectionID)
+	slog.Info("ws client detached", slog.String("userId", c.userID), slog.String("sessionId", c.sessionID), slog.String("sectionId", c.sectionID))
 }
 
 func (h *Hub) Broadcast(_ context.Context, msg *domain.Message) {
@@ -230,7 +230,7 @@ func (h *Hub) Broadcast(_ context.Context, msg *domain.Message) {
 	data, err := json.Marshal(msg)
 	h.mu.RUnlock()
 	if err != nil {
-		log.Printf("broadcast marshal error: %v", err)
+		slog.Error("broadcast marshal error", slog.Any("error", err))
 		return
 	}
 
@@ -269,5 +269,5 @@ func (h *Hub) AttachClient(c *Client, topics []string) {
 		}
 		h.subscribe(c, topic)
 	}
-	log.Printf("ws client attached user=%s session=%s section=%s topics=%v", c.userID, c.sessionID, c.sectionID, topics)
+	slog.Info("ws client attached", slog.String("userId", c.userID), slog.String("sessionId", c.sessionID), slog.String("sectionId", c.sectionID), slog.Any("topics", topics))
 }
