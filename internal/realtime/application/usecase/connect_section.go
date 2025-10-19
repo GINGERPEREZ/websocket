@@ -78,7 +78,6 @@ func (uc *ConnectSectionUseCase) RefreshSectionSnapshots(ctx context.Context, en
 	}
 }
 
-
 func (uc *ConnectSectionUseCase) listScope(ctx context.Context, scope, token, sectionID string, params domain.PagedQuery) (*domain.SectionSnapshot, domain.PagedQuery, error) {
 	options := params.Normalize(sectionID)
 	queryKey := options.CanonicalKey()
