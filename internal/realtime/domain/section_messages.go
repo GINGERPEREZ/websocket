@@ -48,12 +48,14 @@ func BuildDetailMessage(entity, sectionID, restaurantID string, snapshot *Sectio
 	}
 
 	trimmedSection := strings.TrimSpace(sectionID)
-	trimmedRestaurant := strings.TrimSpace(restaurantID)
+	trimmedResource := strings.TrimSpace(restaurantID)
 	metadata := map[string]string{
 		"sectionId": trimmedSection,
 	}
-	if trimmedRestaurant != "" {
-		metadata["restaurantId"] = trimmedRestaurant
+	entityName := strings.TrimSpace(entity)
+	resourceKey := detailResourceKey(entityName)
+	if trimmedResource != "" && resourceKey != "" {
+		metadata[resourceKey] = trimmedResource
 	}
 
 	if snapshot.Restaurant != nil {
@@ -108,6 +110,9 @@ func BuildDetailMessage(entity, sectionID, restaurantID string, snapshot *Sectio
 		}
 	}
 	if snapshot.Table != nil {
+		if id := strings.TrimSpace(snapshot.Table.ID); id != "" {
+			metadata["tableId"] = id
+		}
 		if state := strings.TrimSpace(string(snapshot.Table.State)); state != "" {
 			metadata["tableState"] = state
 		}
@@ -141,6 +146,9 @@ func BuildDetailMessage(entity, sectionID, restaurantID string, snapshot *Sectio
 		}
 	}
 	if snapshot.Reservation != nil {
+		if id := strings.TrimSpace(snapshot.Reservation.ID); id != "" {
+			metadata["reservationId"] = id
+		}
 		if status := strings.TrimSpace(string(snapshot.Reservation.Status)); status != "" {
 			metadata["reservationStatus"] = status
 		}
@@ -158,15 +166,25 @@ func BuildDetailMessage(entity, sectionID, restaurantID string, snapshot *Sectio
 		}
 	}
 
-	entityName := strings.TrimSpace(entity)
 	return &Message{
 		Topic:      entityName + ".detail",
 		Entity:     entityName,
 		Action:     "detail",
-		ResourceID: trimmedRestaurant,
+		ResourceID: trimmedResource,
 		Metadata:   metadata,
 		Data:       snapshot.Payload,
 		Timestamp:  at.UTC(),
+	}
+}
+
+func detailResourceKey(entity string) string {
+	switch strings.ToLower(strings.TrimSpace(entity)) {
+	case "tables":
+		return "tableId"
+	case "reservations":
+		return "reservationId"
+	default:
+		return "restaurantId"
 	}
 }
 

@@ -21,6 +21,7 @@ type snapshotCache struct {
 
 type snapshotCacheEntry struct {
 	sectionID   string
+	scope       string
 	kind        string
 	key         string
 	listOptions domain.PagedQuery
@@ -34,7 +35,7 @@ func newSnapshotCache() *snapshotCache {
 	return &snapshotCache{entries: make(map[string]map[string]*snapshotCacheEntry)}
 }
 
-func (c *snapshotCache) set(sectionID, kind string, options domain.PagedQuery, resourceID, token string, snapshot *domain.SectionSnapshot) {
+func (c *snapshotCache) set(sectionID, scope, kind string, options domain.PagedQuery, resourceID, token string, snapshot *domain.SectionSnapshot) {
 	sectionID = strings.TrimSpace(sectionID)
 	if sectionID == "" {
 		return
@@ -44,9 +45,10 @@ func (c *snapshotCache) set(sectionID, kind string, options domain.PagedQuery, r
 	if c.entries[sectionID] == nil {
 		c.entries[sectionID] = make(map[string]*snapshotCacheEntry)
 	}
-	key := cacheEntryKey(kind, options, resourceID)
+	key := cacheEntryKey(scope, kind, options, resourceID)
 	c.entries[sectionID][key] = &snapshotCacheEntry{
 		sectionID:   sectionID,
+		scope:       strings.TrimSpace(scope),
 		kind:        kind,
 		key:         key,
 		listOptions: options,
@@ -57,14 +59,14 @@ func (c *snapshotCache) set(sectionID, kind string, options domain.PagedQuery, r
 	}
 }
 
-func (c *snapshotCache) get(sectionID, kind string, options domain.PagedQuery, resourceID string) (*snapshotCacheEntry, bool) {
+func (c *snapshotCache) get(sectionID, scope, kind string, options domain.PagedQuery, resourceID string) (*snapshotCacheEntry, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	sec := c.entries[strings.TrimSpace(sectionID)]
 	if sec == nil {
 		return nil, false
 	}
-	key := cacheEntryKey(kind, options, resourceID)
+	key := cacheEntryKey(scope, kind, options, resourceID)
 	entry, ok := sec[key]
 	if !ok {
 		return nil, false
@@ -72,7 +74,7 @@ func (c *snapshotCache) get(sectionID, kind string, options domain.PagedQuery, r
 	return entry.clone(), true
 }
 
-func (c *snapshotCache) delete(sectionID, kind string, options domain.PagedQuery, resourceID string) {
+func (c *snapshotCache) delete(sectionID, scope, kind string, options domain.PagedQuery, resourceID string) {
 	sectionID = strings.TrimSpace(sectionID)
 	if sectionID == "" {
 		return
@@ -80,7 +82,7 @@ func (c *snapshotCache) delete(sectionID, kind string, options domain.PagedQuery
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if sec := c.entries[sectionID]; sec != nil {
-		key := cacheEntryKey(kind, options, resourceID)
+		key := cacheEntryKey(scope, kind, options, resourceID)
 		delete(sec, key)
 		if len(sec) == 0 {
 			delete(c.entries, sectionID)
@@ -110,11 +112,12 @@ func (e *snapshotCacheEntry) clone() *snapshotCacheEntry {
 	return &cloned
 }
 
-func cacheEntryKey(kind string, options domain.PagedQuery, resourceID string) string {
+func cacheEntryKey(scope, kind string, options domain.PagedQuery, resourceID string) string {
+	trimmedScope := strings.ToLower(strings.TrimSpace(scope))
 	switch strings.ToLower(kind) {
 	case cacheKindItem:
-		return cacheKindItem + cacheDelimiter + strings.TrimSpace(resourceID)
+		return trimmedScope + cacheDelimiter + cacheKindItem + cacheDelimiter + strings.TrimSpace(resourceID)
 	default:
-		return cacheKindList + cacheDelimiter + options.CanonicalKey()
+		return trimmedScope + cacheDelimiter + cacheKindList + cacheDelimiter + options.CanonicalKey()
 	}
 }

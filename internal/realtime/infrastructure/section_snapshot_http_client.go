@@ -123,6 +123,104 @@ func (c *SectionSnapshotHTTPClient) FetchRestaurant(ctx context.Context, token, 
 	return decodeSectionSnapshot(res.Body)
 }
 
+func (c *SectionSnapshotHTTPClient) FetchTable(ctx context.Context, token, tableID string) (*domain.SectionSnapshot, error) {
+	resource := strings.TrimSpace(tableID)
+	if resource == "" {
+		return nil, port.ErrSnapshotNotFound
+	}
+	slog.Info("snapshot table fetch start", slog.String("tableId", resource))
+	if c.timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.timeout)
+		defer cancel()
+	}
+
+	endpoint := path.Join("/api/v1/table", resource)
+	req, err := c.rest.NewRequest(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		slog.Error("snapshot table request build failed", slog.String("tableId", resource), slog.Any("error", err))
+		return nil, err
+	}
+
+	req.Header.Set("Accept", "application/json")
+	if trimmed := strings.TrimSpace(token); trimmed != "" {
+		req.Header.Set("Authorization", "Bearer "+trimmed)
+	}
+
+	slog.Debug("snapshot table request", slog.String("url", req.URL.String()))
+
+	res, err := c.rest.Do(req)
+	if err != nil {
+		slog.Error("snapshot table request error", slog.String("tableId", resource), slog.Any("error", err))
+		return nil, fmt.Errorf("snapshot request failed: %w", err)
+	}
+	defer res.Body.Close()
+	slog.Debug("snapshot table response", slog.Int("status", res.StatusCode), slog.String("url", req.URL.String()))
+
+	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
+		return nil, port.ErrSnapshotForbidden
+	}
+	if res.StatusCode == http.StatusNotFound {
+		return nil, port.ErrSnapshotNotFound
+	}
+	if res.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
+		slog.Error("snapshot table unexpected status", slog.Int("status", res.StatusCode), slog.String("url", req.URL.String()), slog.String("body", strings.TrimSpace(string(body))))
+		return nil, fmt.Errorf("unexpected snapshot response %d", res.StatusCode)
+	}
+
+	return decodeSectionSnapshot(res.Body)
+}
+
+func (c *SectionSnapshotHTTPClient) FetchReservation(ctx context.Context, token, reservationID string) (*domain.SectionSnapshot, error) {
+	resource := strings.TrimSpace(reservationID)
+	if resource == "" {
+		return nil, port.ErrSnapshotNotFound
+	}
+	slog.Info("snapshot reservation fetch start", slog.String("reservationId", resource))
+	if c.timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.timeout)
+		defer cancel()
+	}
+
+	endpoint := path.Join("/api/v1/reservation", resource)
+	req, err := c.rest.NewRequest(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		slog.Error("snapshot reservation request build failed", slog.String("reservationId", resource), slog.Any("error", err))
+		return nil, err
+	}
+
+	req.Header.Set("Accept", "application/json")
+	if trimmed := strings.TrimSpace(token); trimmed != "" {
+		req.Header.Set("Authorization", "Bearer "+trimmed)
+	}
+
+	slog.Debug("snapshot reservation request", slog.String("url", req.URL.String()))
+
+	res, err := c.rest.Do(req)
+	if err != nil {
+		slog.Error("snapshot reservation request error", slog.String("reservationId", resource), slog.Any("error", err))
+		return nil, fmt.Errorf("snapshot request failed: %w", err)
+	}
+	defer res.Body.Close()
+	slog.Debug("snapshot reservation response", slog.Int("status", res.StatusCode), slog.String("url", req.URL.String()))
+
+	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
+		return nil, port.ErrSnapshotForbidden
+	}
+	if res.StatusCode == http.StatusNotFound {
+		return nil, port.ErrSnapshotNotFound
+	}
+	if res.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
+		slog.Error("snapshot reservation unexpected status", slog.Int("status", res.StatusCode), slog.String("url", req.URL.String()), slog.String("body", strings.TrimSpace(string(body))))
+		return nil, fmt.Errorf("unexpected snapshot response %d", res.StatusCode)
+	}
+
+	return decodeSectionSnapshot(res.Body)
+}
+
 func decodeSectionSnapshot(body io.Reader) (*domain.SectionSnapshot, error) {
 	var payload interface{}
 	if err := json.NewDecoder(body).Decode(&payload); err != nil {
