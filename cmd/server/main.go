@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"log"
 	"mesaYaWs/internal/app"
 	"mesaYaWs/internal/broker"
@@ -13,13 +15,22 @@ import (
 	"mesaYaWs/internal/shared/auth"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/labstack/echo/v4"
 )
 
 func main() {
 	cfg := config.Load()
+
+	logFile, err := setupLogging(cfg.LogDir)
+	if err != nil {
+		log.Fatalf("failed to initialize logging: %v", err)
+	}
+	defer logFile.Close()
+
 	hub := app.NewAppHub()
 	registry := infrastructure.NewHandlerRegistry()
 
@@ -44,6 +55,7 @@ func main() {
 
 	// Echo server
 	e := echo.New()
+	e.Logger.SetOutput(log.Writer())
 
 	// JWT validator used to validate tokens issued by the Nest auth service
 	validator := auth.NewJWTValidator(cfg.JWTSecret)
@@ -65,4 +77,25 @@ func main() {
 	<-stop
 	log.Println("Shutting down...")
 	e.Close()
+}
+
+func setupLogging(dir string) (*os.File, error) {
+	if dir == "" {
+		dir = "./logs"
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("create log dir: %w", err)
+	}
+	fileName := filepath.Join(dir, time.Now().UTC().Format("2006-01-02")+".log")
+	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return nil, fmt.Errorf("open log file: %w", err)
+	}
+
+	mw := io.MultiWriter(os.Stdout, file)
+	log.SetOutput(mw)
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
+
+	log.Printf("logging initialized file=%s", fileName)
+	return file, nil
 }

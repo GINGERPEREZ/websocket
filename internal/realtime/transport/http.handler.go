@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -42,11 +43,25 @@ func NewWebsocketHandler(
 	return func(c echo.Context) error {
 		section := strings.TrimSpace(c.Param("section"))
 		token := strings.TrimSpace(c.Param("token"))
+		if token == "" {
+			token = strings.TrimSpace(c.QueryParam("token"))
+			if token != "" {
+				log.Printf("ws handler: token sourced from query section=%s tokenLen=%d", section, len(token))
+			}
+		}
+		if token == "" {
+			authz := strings.TrimSpace(c.Request().Header.Get("Authorization"))
+			if strings.HasPrefix(strings.ToLower(authz), "bearer ") {
+				token = strings.TrimSpace(authz[7:])
+				log.Printf("ws handler: token sourced from authorization header section=%s tokenLen=%d", section, len(token))
+			}
+		}
 		logger := c.Logger()
 		requestID := c.Response().Header().Get(echo.HeaderXRequestID)
 		peerIP := c.RealIP()
 
 		if section == "" {
+			log.Printf("ws handler: missing section path param tokenLen=%d", len(token))
 			logger.Warnf("ws rejected: missing section entity=%s ip=%s reqID=%s", entity, peerIP, requestID)
 			return echo.NewHTTPError(http.StatusBadRequest, "missing section")
 		}
@@ -54,6 +69,7 @@ func NewWebsocketHandler(
 		ctx, cancel := context.WithTimeout(c.Request().Context(), 10*time.Second)
 		defer cancel()
 
+		log.Printf("ws handler: executing connect usecase section=%s tokenLen=%d", section, len(token))
 		output, err := connectUC.Execute(ctx, usecase.ConnectSectionInput{Token: token, SectionID: section})
 		if err != nil {
 			status := http.StatusInternalServerError
@@ -80,6 +96,7 @@ func NewWebsocketHandler(
 				message = "snapshot timeout"
 			}
 
+			log.Printf("ws handler: connect failed section=%s status=%d message=%s err=%v", section, status, message, err)
 			if status >= http.StatusInternalServerError {
 				logger.Errorf("ws connect failed entity=%s section=%s ip=%s reqID=%s: %v", entity, section, peerIP, requestID, err)
 			} else {
@@ -90,6 +107,7 @@ func NewWebsocketHandler(
 
 		conn, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 		if err != nil {
+			log.Printf("ws handler: upgrade failed section=%s err=%v", section, err)
 			logger.Errorf("ws upgrade failed entity=%s section=%s ip=%s reqID=%s: %v", entity, section, peerIP, requestID, err)
 			return err
 		}
@@ -98,6 +116,7 @@ func NewWebsocketHandler(
 		userID := claims.RegisteredClaims.Subject
 		sessionID := claims.SessionID
 		roles := claims.Roles
+		log.Printf("ws handler: upgrade success section=%s user=%s session=%s roles=%v", section, userID, sessionID, roles)
 
 		client := infrastructure.NewClient(hub, conn, userID, sessionID, section, 8)
 
@@ -125,6 +144,7 @@ func NewWebsocketHandler(
 			Timestamp: time.Now().UTC(),
 		}
 		client.SendDomainMessage(connected)
+		log.Printf("ws handler: sent system.connected section=%s user=%s session=%s", section, userID, sessionID)
 
 		if output.Snapshot != nil {
 			snapshot := &domain.Message{
@@ -137,10 +157,11 @@ func NewWebsocketHandler(
 					"sessionId": sessionID,
 					"sectionId": section,
 				},
-				Data:      output.Snapshot.Section,
+				Data:      output.Snapshot.Payload,
 				Timestamp: time.Now().UTC(),
 			}
 			client.SendDomainMessage(snapshot)
+			log.Printf("ws handler: sent snapshot section=%s user=%s session=%s payloadType=%T", section, userID, sessionID, output.Snapshot.Payload)
 		}
 
 		logger.Infof("ws connected entity=%s section=%s user=%s session=%s roles=%v ip=%s reqID=%s",

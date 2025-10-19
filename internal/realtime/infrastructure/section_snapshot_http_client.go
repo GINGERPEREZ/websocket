@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -26,9 +27,11 @@ func (c *SectionSnapshotHTTPClient) FetchSection(ctx context.Context, token, sec
 	if sectionID == "" {
 		return nil, port.ErrSnapshotNotFound
 	}
+	log.Printf("snapshot-client: start section=%s", sectionID)
 
 	req, err := c.rest.NewRequest(ctx, http.MethodGet, "/api/v1/restaurant", nil)
 	if err != nil {
+		log.Printf("snapshot-client: request build failed section=%s err=%v", sectionID, err)
 		return nil, err
 	}
 
@@ -48,12 +51,15 @@ func (c *SectionSnapshotHTTPClient) FetchSection(ctx context.Context, token, sec
 		query.Set("q", sectionID)
 	}
 	req.URL.RawQuery = query.Encode()
+	log.Printf("snapshot-client: requesting url=%s", req.URL.String())
 
 	res, err := c.rest.Do(req)
 	if err != nil {
-		return nil, err
+		log.Printf("snapshot-client: request error section=%s err=%v", sectionID, err)
+		return nil, fmt.Errorf("snapshot request failed: %w", err)
 	}
 	defer res.Body.Close()
+	log.Printf("snapshot-client: response status=%d url=%s", res.StatusCode, req.URL.String())
 
 	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
 		return nil, port.ErrSnapshotForbidden
@@ -63,7 +69,8 @@ func (c *SectionSnapshotHTTPClient) FetchSection(ctx context.Context, token, sec
 	}
 	if res.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
-		return nil, fmt.Errorf("unexpected snapshot response %d: %s", res.StatusCode, strings.TrimSpace(string(body)))
+		log.Printf("snapshot fetch error status=%d url=%s body=%s", res.StatusCode, req.URL.String(), strings.TrimSpace(string(body)))
+		return nil, fmt.Errorf("unexpected snapshot response %d", res.StatusCode)
 	}
 
 	return decodeSectionSnapshot(res.Body)
@@ -74,26 +81,19 @@ func decodeSectionSnapshot(body io.Reader) (*domain.SectionSnapshot, error) {
 	if err := json.NewDecoder(body).Decode(&payload); err != nil {
 		return nil, fmt.Errorf("decode snapshot: %w", err)
 	}
+	log.Printf("snapshot-client: payload decoded type=%T", payload)
 
-	section := extractSectionMap(payload)
-	if section == nil {
-		return nil, fmt.Errorf("snapshot payload missing section data")
-	}
-	return &domain.SectionSnapshot{Section: section}, nil
+	return &domain.SectionSnapshot{Payload: normalizeSnapshotPayload(payload)}, nil
 }
 
-func extractSectionMap(payload interface{}) map[string]any {
+func normalizeSnapshotPayload(payload interface{}) map[string]any {
 	switch typed := payload.(type) {
 	case map[string]interface{}:
-		if section, ok := typed["data"].(map[string]interface{}); ok {
-			return section
-		}
-		if section, ok := typed["section"].(map[string]interface{}); ok {
-			return section
-		}
 		return typed
+	case []interface{}:
+		return map[string]any{"items": typed}
 	default:
-		return nil
+		return map[string]any{"value": typed}
 	}
 }
 

@@ -10,6 +10,7 @@ type Config struct {
 	ServerPort     string
 	JWTSecret      string
 	RestBaseURL    string
+	LogDir         string
 	EntityTopics   map[string]string
 	AllowedActions []string
 }
@@ -25,10 +26,15 @@ func Load() *Config {
 		port = "8080"
 	}
 
-	secret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
-	baseURL := strings.TrimSpace(os.Getenv("REST_BASE_URL"))
+	secret := trimQuotes(strings.TrimSpace(os.Getenv("JWT_SECRET")))
+	baseURL := trimQuotes(strings.TrimSpace(os.Getenv("REST_BASE_URL")))
 	if baseURL == "" {
 		baseURL = "http://localhost:3000"
+	}
+
+	logDir := trimQuotes(strings.TrimSpace(os.Getenv("LOG_DIR")))
+	if logDir == "" {
+		logDir = "./logs"
 	}
 
 	topics := parseTopics(os.Getenv("WS_ENTITY_TOPICS"))
@@ -53,6 +59,7 @@ func Load() *Config {
 		ServerPort:     port,
 		JWTSecret:      secret,
 		RestBaseURL:    baseURL,
+		LogDir:         logDir,
 		EntityTopics:   topics,
 		AllowedActions: actions,
 	}
@@ -71,6 +78,20 @@ func split(raw string) []string {
 		}
 	}
 	return result
+}
+
+func trimQuotes(raw string) string {
+	if raw == "" {
+		return raw
+	}
+	raw = strings.TrimSpace(raw)
+	if len(raw) >= 2 {
+		if (strings.HasPrefix(raw, "\"") && strings.HasSuffix(raw, "\"")) ||
+			(strings.HasPrefix(raw, "'") && strings.HasSuffix(raw, "'")) {
+			return raw[1 : len(raw)-1]
+		}
+	}
+	return raw
 }
 
 func parseTopics(raw string) map[string]string {
