@@ -39,7 +39,8 @@ This note captures the ubiquitous language we will lean on while refactoring the
 ## Entities & Value Objects
 
 - `RestaurantId`, `SectionId`, `TableId`, `ReservationId`, `ReviewId`, `UserId`: value objects wrapping UUIDs to avoid accidental mixups.
-- `Schedule`: value object encapsulating `openTime`/`closeTime` with validation that spans a single day.
+- `Schedule`: value object encapsulating `openTime`/`closeTime` with validation that spans a single day. Enforced by `internal/realtime/domain/schedule.go`.
+- `DayOfWeek`: enumerates allowed opening days (`MONDAY`..`SUNDAY`) with normalization helpers in `internal/realtime/domain/day_of_week.go`.
 - `PagedQuery`: value object standardising `page`, `limit`, `search`, `sortBy`, `sortOrder` (already partially encoded in `SectionListOptions`).
 - `GeoLocation`: free-form string today; candidate for future refinement.
 - `Capacity`: positive integer; potential reuse across restaurants and tables.
@@ -48,6 +49,7 @@ This note captures the ubiquitous language we will lean on while refactoring the
 
 - **SnapshotService** (current `SectionSnapshotFetcher`): translates REST responses into domain aggregates for realtime consumption; today it returns raw maps—we will upgrade it to emit typed entities.
 - **BroadcastService**: wraps Kafka/WebSocket broadcasting so use cases only emit domain messages.
+- **SectionMessageFactory**: `internal/realtime/domain/section_messages.go` derives list/detail metadata from typed projections to keep message assembly DRY.
 
 ## Context Map
 

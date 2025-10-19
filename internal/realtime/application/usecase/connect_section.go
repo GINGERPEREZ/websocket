@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log"
-	"strconv"
 	"strings"
 	"time"
 
@@ -147,16 +146,10 @@ func (uc *ConnectSectionUseCase) refreshList(ctx context.Context, entity, sectio
 		uc.cache.set(sectionID, cacheKindList, options, "", entry.token, snapshot)
 	}
 
-	metadata := options.Metadata(sectionID)
-
-	message := &domain.Message{
-		Topic:      entity + ".list",
-		Entity:     entity,
-		Action:     "list",
-		ResourceID: sectionID,
-		Metadata:   metadata,
-		Data:       snapshot.Payload,
-		Timestamp:  time.Now().UTC(),
+	message := domain.BuildListMessage(entity, sectionID, snapshot, options, time.Now().UTC())
+	if message == nil {
+		log.Printf("connect-section: refresh list skipped empty snapshot section=%s query=%s", sectionID, queryKey)
+		return
 	}
 	broadcaster.Execute(ctx, message)
 	log.Printf("connect-section: refreshed list broadcast section=%s entity=%s query=%s", sectionID, entity, queryKey)
@@ -176,19 +169,10 @@ func (uc *ConnectSectionUseCase) refreshItem(ctx context.Context, entity, sectio
 		uc.cache.set(sectionID, cacheKindItem, domain.PagedQuery{}, entry.resourceID, entry.token, snapshot)
 	}
 
-	metadata := map[string]string{
-		"sectionId":    sectionID,
-		"restaurantId": entry.resourceID,
-	}
-
-	message := &domain.Message{
-		Topic:      entity + ".detail",
-		Entity:     entity,
-		Action:     "detail",
-		ResourceID: entry.resourceID,
-		Metadata:   metadata,
-		Data:       snapshot.Payload,
-		Timestamp:  time.Now().UTC(),
+	message := domain.BuildDetailMessage(entity, sectionID, entry.resourceID, snapshot, time.Now().UTC())
+	if message == nil {
+		log.Printf("connect-section: refresh detail skipped empty snapshot section=%s restaurant=%s", sectionID, entry.resourceID)
+		return
 	}
 	broadcaster.Execute(ctx, message)
 	log.Printf("connect-section: refreshed detail broadcast section=%s entity=%s restaurant=%s", sectionID, entity, entry.resourceID)
@@ -207,21 +191,9 @@ func (uc *ConnectSectionUseCase) HandleListRestaurantsCommand(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
-	metadata := normalized.Metadata(sectionID)
-	if snapshot.RestaurantList != nil {
-		metadata["itemsCount"] = strconv.Itoa(len(snapshot.RestaurantList.Items))
-		if snapshot.RestaurantList.Total > 0 {
-			metadata["total"] = strconv.Itoa(snapshot.RestaurantList.Total)
-		}
-	}
-	message := &domain.Message{
-		Topic:      entity + ".list",
-		Entity:     entity,
-		Action:     "list",
-		ResourceID: sectionID,
-		Metadata:   metadata,
-		Data:       snapshot.Payload,
-		Timestamp:  time.Now().UTC(),
+	message := domain.BuildListMessage(entity, sectionID, snapshot, normalized, time.Now().UTC())
+	if message == nil {
+		return nil, port.ErrSnapshotNotFound
 	}
 	return message, nil
 }
@@ -236,23 +208,9 @@ func (uc *ConnectSectionUseCase) HandleGetRestaurantCommand(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	metadata := map[string]string{
-		"sectionId":    sectionID,
-		"restaurantId": restaurantID,
-	}
-	if snapshot.Restaurant != nil {
-		if trimmed := strings.TrimSpace(snapshot.Restaurant.Name); trimmed != "" {
-			metadata["restaurantName"] = trimmed
-		}
-	}
-	message := &domain.Message{
-		Topic:      entity + ".detail",
-		Entity:     entity,
-		Action:     "detail",
-		ResourceID: restaurantID,
-		Metadata:   metadata,
-		Data:       snapshot.Payload,
-		Timestamp:  time.Now().UTC(),
+	message := domain.BuildDetailMessage(entity, sectionID, restaurantID, snapshot, time.Now().UTC())
+	if message == nil {
+		return nil, port.ErrSnapshotNotFound
 	}
 	return message, nil
 }

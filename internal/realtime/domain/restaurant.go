@@ -1,9 +1,6 @@
 package domain
 
-import (
-	"strings"
-	"time"
-)
+import "strings"
 
 // Restaurant represents the restaurant aggregate root exposed over realtime.
 type Restaurant struct {
@@ -11,9 +8,8 @@ type Restaurant struct {
 	Name          string
 	Description   string
 	Location      string
-	OpenTime      time.Time
-	CloseTime     time.Time
-	DaysOpen      []string
+	Schedule      Schedule
+	DaysOpen      []DayOfWeek
 	TotalCapacity int
 	Subscription  int
 	ImageID       int
@@ -38,16 +34,13 @@ func NormalizeRestaurant(raw map[string]any) (Restaurant, bool) {
 		Name:          strings.TrimSpace(name),
 		Description:   asString(raw["description"]),
 		Location:      asString(raw["location"]),
-		DaysOpen:      asStringSlice(raw["daysOpen"]),
+		DaysOpen:      NormalizeDaysOpen(raw["daysOpen"]),
 		TotalCapacity: asInt(raw["totalCapacity"]),
 		Subscription:  asInt(raw["subscriptionId"]),
 		ImageID:       asInt(raw["imageId"]),
 	}
-	if open := parseTime(raw["openTime"]); !open.IsZero() {
-		resto.OpenTime = open
-	}
-	if close := parseTime(raw["closeTime"]); !close.IsZero() {
-		resto.CloseTime = close
+	if schedule, ok := BuildSchedule(raw["openTime"], raw["closeTime"]); ok {
+		resto.Schedule = schedule
 	}
 	return resto, true
 }
@@ -93,78 +86,6 @@ func BuildRestaurantDetail(payload any) (*Restaurant, bool) {
 		return nil, false
 	}
 	return &resto, true
-}
-
-func asString(value any) string {
-	if s, ok := value.(string); ok {
-		return strings.TrimSpace(s)
-	}
-	return ""
-}
-
-func asInt(value any) int {
-	switch typed := value.(type) {
-	case float64:
-		return int(typed)
-	case int:
-		return typed
-	case int32:
-		return int(typed)
-	case int64:
-		return int(typed)
-	default:
-		return 0
-	}
-}
-
-func asStringSlice(value any) []string {
-	var result []string
-	switch typed := value.(type) {
-	case []interface{}:
-		for _, item := range typed {
-			if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
-				result = append(result, strings.TrimSpace(s))
-			}
-		}
-	case []string:
-		for _, s := range typed {
-			if strings.TrimSpace(s) != "" {
-				result = append(result, strings.TrimSpace(s))
-			}
-		}
-	}
-	return result
-}
-
-func asInterfaceSlice(value any) []interface{} {
-	switch typed := value.(type) {
-	case []interface{}:
-		return typed
-	case []map[string]any:
-		items := make([]interface{}, 0, len(typed))
-		for _, entry := range typed {
-			items = append(items, entry)
-		}
-		return items
-	default:
-		return nil
-	}
-}
-
-func parseTime(value any) time.Time {
-	s, ok := value.(string)
-	if !ok {
-		return time.Time{}
-	}
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return time.Time{}
-	}
-	parsed, err := time.Parse("15:04", s)
-	if err != nil {
-		return time.Time{}
-	}
-	return parsed
 }
 
 func mapFromPayload(value any) map[string]any {
