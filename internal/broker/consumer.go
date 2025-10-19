@@ -3,7 +3,7 @@ package broker
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"mesaYaWs/internal/realtime/domain"
 	"strings"
 	"time"
@@ -29,12 +29,12 @@ func (c *KafkaConsumer) Consume(ctx context.Context, handler func(*domain.Messag
 	for {
 		m, err := c.reader.ReadMessage(ctx)
 		if err != nil {
-			log.Printf("kafka read error: %v", err)
+			slog.Warn("kafka read error", slog.Any("error", err))
 			continue
 		}
 		msg := decodeMessage(m)
 		if err := handler(msg); err != nil {
-			log.Printf("handler error: %v", err)
+			slog.Warn("kafka handler error", slog.Any("error", err))
 		}
 	}
 }
