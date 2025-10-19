@@ -23,8 +23,14 @@ func main() {
 	hub := app.NewAppHub()
 	registry := infrastructure.NewHandlerRegistry()
 
+	// Use cases
+	broadcastUC := usecase.NewBroadcastUseCase(hub)
+
 	// Registrar handlers de tópicos (cada feature)
-	registry.Register(&handler.UserCreatedHandler{UseCase: usecase.NewBroadcastUseCase(hub)})
+	registry.Register(&handler.UserCreatedHandler{UseCase: broadcastUC})
+	for _, topic := range cfg.EntityTopics {
+		registry.Register(handler.NewEntityStreamHandler(topic, cfg.AllowedActions, broadcastUC))
+	}
 
 	// Iniciar Kafka consumers (registrar topics desde config)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -41,9 +47,11 @@ func main() {
 
 	// JWT validator used to validate tokens issued by the Nest auth service
 	validator := auth.NewJWTValidator(cfg.JWTSecret)
+	snapshotFetcher := infrastructure.NewSectionSnapshotHTTPClient(cfg.RestBaseURL, nil)
+	connectUC := usecase.NewConnectSectionUseCase(validator, snapshotFetcher)
 
 	// expose websocket route for restaurant sections: /ws/restaurant/:section/:token
-	e.GET("/ws/restaurant/:section/:token", transport.NewWebsocketHandler(hub, validator, "restaurants", cfg.AllowedActions))
+	e.GET("/ws/restaurant/:section/:token", transport.NewWebsocketHandler(hub, connectUC, "restaurants", cfg.AllowedActions))
 
 	go func() {
 		if err := e.Start(":" + cfg.ServerPort); err != nil {

@@ -25,6 +25,11 @@ type ConnectSectionUseCase struct {
 	SnapshotFetcher port.SectionSnapshotFetcher
 }
 
+var (
+	ErrMissingToken   = errors.New("missing token")
+	ErrMissingSection = errors.New("missing section id")
+)
+
 func NewConnectSectionUseCase(validator auth.TokenValidator, fetcher port.SectionSnapshotFetcher) *ConnectSectionUseCase {
 	return &ConnectSectionUseCase{
 		Validator:       validator,
@@ -34,10 +39,10 @@ func NewConnectSectionUseCase(validator auth.TokenValidator, fetcher port.Sectio
 
 func (uc *ConnectSectionUseCase) Execute(ctx context.Context, input ConnectSectionInput) (*ConnectSectionOutput, error) {
 	if strings.TrimSpace(input.Token) == "" {
-		return nil, errors.New("missing token")
+		return nil, ErrMissingToken
 	}
 	if strings.TrimSpace(input.SectionID) == "" {
-		return nil, errors.New("missing section id")
+		return nil, ErrMissingSection
 	}
 
 	claims, err := uc.Validator.Validate(input.Token)
