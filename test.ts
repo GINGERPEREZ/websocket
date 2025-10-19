@@ -14,6 +14,10 @@ ws.onclose = () => {
   console.log("❌ WebSocket cerrado");
 };
 
+ws.send(
+  JSON.stringify({ action: "snapshot", entity: "restaurants", resourceId: "1" })
+);
+
 ws.onerror = (error) => {
   console.error("⚠️ Error en WebSocket:", error);
 };
