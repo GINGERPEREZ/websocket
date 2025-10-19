@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
-	"time"
 
 	"mesaYaWs/internal/realtime/application/port"
 	"mesaYaWs/internal/realtime/domain"
@@ -16,20 +14,11 @@ import (
 
 // SectionSnapshotHTTPClient implements SectionSnapshotFetcher using the REST API described in swagger.json.
 type SectionSnapshotHTTPClient struct {
-	baseURL string
-	client  *http.Client
+	rest *RESTClient
 }
 
 func NewSectionSnapshotHTTPClient(baseURL string, client *http.Client) *SectionSnapshotHTTPClient {
-	trimmed := strings.TrimSpace(baseURL)
-	if trimmed == "" {
-		trimmed = "http://localhost:3000"
-	}
-	trimmed = strings.TrimRight(trimmed, "/")
-	if client == nil {
-		client = &http.Client{Timeout: 10 * time.Second}
-	}
-	return &SectionSnapshotHTTPClient{baseURL: trimmed, client: client}
+	return &SectionSnapshotHTTPClient{rest: NewRESTClient(baseURL, client)}
 }
 
 func (c *SectionSnapshotHTTPClient) FetchSection(ctx context.Context, token, sectionID string) (*domain.SectionSnapshot, error) {
@@ -38,8 +27,7 @@ func (c *SectionSnapshotHTTPClient) FetchSection(ctx context.Context, token, sec
 		return nil, port.ErrSnapshotNotFound
 	}
 
-	escapedID := url.PathEscape(sectionID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/api/section/%s", c.baseURL, escapedID), nil)
+	req, err := c.rest.NewRequest(ctx, http.MethodGet, "/api/v1/restaurant", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -49,23 +37,36 @@ func (c *SectionSnapshotHTTPClient) FetchSection(ctx context.Context, token, sec
 		req.Header.Set("Authorization", "Bearer "+trimmed)
 	}
 
-	res, err := c.client.Do(req)
+	query := req.URL.Query()
+	if _, exists := query["page"]; !exists {
+		query.Set("page", "1")
+	}
+	if _, exists := query["limit"]; !exists {
+		query.Set("limit", "20")
+	}
+	if sectionID != "" {
+		query.Set("q", sectionID)
+	}
+	req.URL.RawQuery = query.Encode()
+
+	res, err := c.rest.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer res.Body.Close()
 
-	switch res.StatusCode {
-	case http.StatusOK:
-		return decodeSectionSnapshot(res.Body)
-	case http.StatusUnauthorized, http.StatusForbidden:
+	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
 		return nil, port.ErrSnapshotForbidden
-	case http.StatusNotFound:
+	}
+	if res.StatusCode == http.StatusNotFound {
 		return nil, port.ErrSnapshotNotFound
-	default:
+	}
+	if res.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
 		return nil, fmt.Errorf("unexpected snapshot response %d: %s", res.StatusCode, strings.TrimSpace(string(body)))
 	}
+
+	return decodeSectionSnapshot(res.Body)
 }
 
 func decodeSectionSnapshot(body io.Reader) (*domain.SectionSnapshot, error) {
