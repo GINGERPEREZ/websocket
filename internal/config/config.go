@@ -9,6 +9,7 @@ type Config struct {
 	KafkaBrokers   []string
 	ServerPort     string
 	JWTSecret      string
+	RestBaseURL    string
 	EntityTopics   map[string]string
 	AllowedActions []string
 }
@@ -25,6 +26,10 @@ func Load() *Config {
 	}
 
 	secret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
+	baseURL := strings.TrimSpace(os.Getenv("REST_BASE_URL"))
+	if baseURL == "" {
+		baseURL = "http://localhost:3000"
+	}
 
 	topics := parseTopics(os.Getenv("WS_ENTITY_TOPICS"))
 	if len(topics) == 0 {
@@ -47,6 +52,7 @@ func Load() *Config {
 		KafkaBrokers:   brokers,
 		ServerPort:     port,
 		JWTSecret:      secret,
+		RestBaseURL:    baseURL,
 		EntityTopics:   topics,
 		AllowedActions: actions,
 	}
