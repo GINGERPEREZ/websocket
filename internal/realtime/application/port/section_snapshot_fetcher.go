@@ -3,6 +3,7 @@ package port
 import (
 	"context"
 	"errors"
+	"net/url"
 
 	"mesaYaWs/internal/realtime/domain"
 )
@@ -13,5 +14,5 @@ var (
 )
 
 type SectionSnapshotFetcher interface {
-	FetchSection(ctx context.Context, token, sectionID string) (*domain.SectionSnapshot, error)
+	FetchSection(ctx context.Context, token, sectionID string, query url.Values) (*domain.SectionSnapshot, error)
 }

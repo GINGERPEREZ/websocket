@@ -63,6 +63,13 @@ func (v *JWTValidator) Validate(token string) (*Claims, error) {
 	if claims.SessionID == "" {
 		claims.SessionID = claims.RegisteredClaims.ID
 	}
+	if claims.SessionID == "" && claims.RegisteredClaims.Subject != "" {
+		if claims.RegisteredClaims.ExpiresAt != nil {
+			claims.SessionID = fmt.Sprintf("%s:%d", claims.RegisteredClaims.Subject, claims.RegisteredClaims.ExpiresAt.Unix())
+		} else {
+			claims.SessionID = claims.RegisteredClaims.Subject
+		}
+	}
 	if claims.SessionID == "" {
 		return nil, fmt.Errorf("%w: missing session id", ErrInvalidToken)
 	}

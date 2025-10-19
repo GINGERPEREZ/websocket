@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"mesaYaWs/internal/realtime/application/port"
@@ -22,7 +23,7 @@ func NewSectionSnapshotHTTPClient(baseURL string, client *http.Client) *SectionS
 	return &SectionSnapshotHTTPClient{rest: NewRESTClient(baseURL, client)}
 }
 
-func (c *SectionSnapshotHTTPClient) FetchSection(ctx context.Context, token, sectionID string) (*domain.SectionSnapshot, error) {
+func (c *SectionSnapshotHTTPClient) FetchSection(ctx context.Context, token, sectionID string, query url.Values) (*domain.SectionSnapshot, error) {
 	sectionID = strings.TrimSpace(sectionID)
 	if sectionID == "" {
 		return nil, port.ErrSnapshotNotFound
@@ -40,17 +41,17 @@ func (c *SectionSnapshotHTTPClient) FetchSection(ctx context.Context, token, sec
 		req.Header.Set("Authorization", "Bearer "+trimmed)
 	}
 
-	query := req.URL.Query()
-	if _, exists := query["page"]; !exists {
-		query.Set("page", "1")
+	finalQuery := cloneQuery(query)
+	if finalQuery == nil {
+		finalQuery = url.Values{}
 	}
-	if _, exists := query["limit"]; !exists {
-		query.Set("limit", "20")
+	if finalQuery.Get("page") == "" {
+		finalQuery.Set("page", "1")
 	}
-	if sectionID != "" {
-		query.Set("q", sectionID)
+	if finalQuery.Get("limit") == "" {
+		finalQuery.Set("limit", "20")
 	}
-	req.URL.RawQuery = query.Encode()
+	req.URL.RawQuery = finalQuery.Encode()
 	log.Printf("snapshot-client: requesting url=%s", req.URL.String())
 
 	res, err := c.rest.Do(req)
@@ -95,6 +96,18 @@ func normalizeSnapshotPayload(payload interface{}) map[string]any {
 	default:
 		return map[string]any{"value": typed}
 	}
+}
+func cloneQuery(src url.Values) url.Values {
+	if src == nil {
+		return nil
+	}
+	dst := make(url.Values, len(src))
+	for key, values := range src {
+		copied := make([]string, len(values))
+		copy(copied, values)
+		dst[key] = copied
+	}
+	return dst
 }
 
 var _ port.SectionSnapshotFetcher = (*SectionSnapshotHTTPClient)(nil)

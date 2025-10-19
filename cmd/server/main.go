@@ -37,12 +37,6 @@ func main() {
 	// Use cases
 	broadcastUC := usecase.NewBroadcastUseCase(hub)
 
-	// Registrar handlers de tópicos (cada feature)
-	registry.Register(&handler.UserCreatedHandler{UseCase: broadcastUC})
-	for _, topic := range cfg.EntityTopics {
-		registry.Register(handler.NewEntityStreamHandler(topic, cfg.AllowedActions, broadcastUC))
-	}
-
 	// Iniciar Kafka consumers (registrar topics desde config)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -61,6 +55,12 @@ func main() {
 	validator := auth.NewJWTValidator(cfg.JWTSecret)
 	snapshotFetcher := infrastructure.NewSectionSnapshotHTTPClient(cfg.RestBaseURL, nil)
 	connectUC := usecase.NewConnectSectionUseCase(validator, snapshotFetcher)
+
+	// Registrar handlers de tópicos (cada feature)
+	registry.Register(&handler.UserCreatedHandler{UseCase: broadcastUC})
+	for entity, topic := range cfg.EntityTopics {
+		registry.Register(handler.NewEntityStreamHandler(entity, topic, cfg.AllowedActions, broadcastUC, connectUC))
+	}
 
 	// expose websocket route for restaurant sections: /ws/restaurant/:section/:token
 	e.GET("/ws/restaurant/:section/:token", transport.NewWebsocketHandler(hub, connectUC, "restaurants", cfg.AllowedActions))

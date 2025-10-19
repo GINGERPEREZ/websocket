@@ -43,8 +43,9 @@ func NewWebsocketHandler(
 	return func(c echo.Context) error {
 		section := strings.TrimSpace(c.Param("section"))
 		token := strings.TrimSpace(c.Param("token"))
+		queryParams := c.QueryParams()
 		if token == "" {
-			token = strings.TrimSpace(c.QueryParam("token"))
+			token = strings.TrimSpace(queryParams.Get("token"))
 			if token != "" {
 				log.Printf("ws handler: token sourced from query section=%s tokenLen=%d", section, len(token))
 			}
@@ -59,6 +60,11 @@ func NewWebsocketHandler(
 		logger := c.Logger()
 		requestID := c.Response().Header().Get(echo.HeaderXRequestID)
 		peerIP := c.RealIP()
+		for key := range queryParams {
+			if strings.EqualFold(key, "token") {
+				queryParams.Del(key)
+			}
+		}
 
 		if section == "" {
 			log.Printf("ws handler: missing section path param tokenLen=%d", len(token))
@@ -70,7 +76,7 @@ func NewWebsocketHandler(
 		defer cancel()
 
 		log.Printf("ws handler: executing connect usecase section=%s tokenLen=%d", section, len(token))
-		output, err := connectUC.Execute(ctx, usecase.ConnectSectionInput{Token: token, SectionID: section})
+		output, err := connectUC.Execute(ctx, usecase.ConnectSectionInput{Token: token, SectionID: section, Query: queryParams})
 		if err != nil {
 			status := http.StatusInternalServerError
 			message := "unable to connect section"
