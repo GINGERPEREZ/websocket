@@ -5,11 +5,11 @@ package domain
 // When possible, typed projections are stored for reuse by higher layers without
 // forcing additional parsing.
 type SectionSnapshot struct {
-	Payload           any
-	RestaurantList    *RestaurantList
-	Restaurant        *Restaurant
-	TableList         *TableList
-	Table             *Table
-	ReservationList   *ReservationList
-	Reservation       *Reservation
+	Payload         any
+	RestaurantList  *RestaurantList
+	Restaurant      *Restaurant
+	TableList       *TableList
+	Table           *Table
+	ReservationList *ReservationList
+	Reservation     *Reservation
 }

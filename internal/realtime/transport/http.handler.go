@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -55,7 +56,7 @@ func NewWebsocketHandler(
 			authz := strings.TrimSpace(c.Request().Header.Get("Authorization"))
 			if strings.HasPrefix(strings.ToLower(authz), "bearer ") {
 				token = strings.TrimSpace(authz[7:])
-				log.Printf("ws handler: token sourced from authorization header section=%s tokenLen=%d", section, len(token))
+				slog.Debug("ws handler token sourced from authorization header", slog.String("entity", entity), slog.String("sectionId", section), slog.Int("tokenLen", len(token)))
 			}
 		}
 		logger := c.Logger()

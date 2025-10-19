@@ -89,4 +89,3 @@ func BuildRestaurantDetail(payload any) (*Restaurant, bool) {
 	}
 	return &resto, true
 }
-
