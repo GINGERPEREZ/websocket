@@ -4,9 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -49,14 +48,14 @@ func NewWebsocketHandler(
 		if token == "" {
 			token = strings.TrimSpace(queryParams.Get("token"))
 			if token != "" {
-				log.Printf("ws handler: token sourced from query section=%s tokenLen=%d", section, len(token))
+				slog.Debug("ws handler token sourced from query", slog.String("entity", entity), slog.String("sectionId", section), slog.Int("tokenLen", len(token)))
 			}
 		}
 		if token == "" {
 			authz := strings.TrimSpace(c.Request().Header.Get("Authorization"))
 			if strings.HasPrefix(strings.ToLower(authz), "bearer ") {
 				token = strings.TrimSpace(authz[7:])
-				log.Printf("ws handler: token sourced from authorization header section=%s tokenLen=%d", section, len(token))
+				slog.Debug("ws handler token sourced from authorization header", slog.String("entity", entity), slog.String("sectionId", section), slog.Int("tokenLen", len(token)))
 			}
 		}
 		logger := c.Logger()
@@ -64,7 +63,7 @@ func NewWebsocketHandler(
 		peerIP := c.RealIP()
 
 		if section == "" {
-			log.Printf("ws handler: missing section path param tokenLen=%d", len(token))
+			slog.Warn("ws handler missing section", slog.String("entity", entity), slog.Int("tokenLen", len(token)))
 			logger.Warnf("ws rejected: missing section entity=%s ip=%s reqID=%s", entity, peerIP, requestID)
 			return echo.NewHTTPError(http.StatusBadRequest, "missing section")
 		}
@@ -72,7 +71,7 @@ func NewWebsocketHandler(
 		ctx, cancel := context.WithTimeout(c.Request().Context(), 10*time.Second)
 		defer cancel()
 
-		log.Printf("ws handler: executing connect usecase section=%s tokenLen=%d", section, len(token))
+		slog.Info("ws handler executing connect", slog.String("entity", entity), slog.String("sectionId", section), slog.Int("tokenLen", len(token)))
 		output, err := connectUC.Execute(ctx, usecase.ConnectSectionInput{Token: token, SectionID: section})
 		if err != nil {
 			status := http.StatusInternalServerError
@@ -99,7 +98,7 @@ func NewWebsocketHandler(
 				message = "snapshot timeout"
 			}
 
-			log.Printf("ws handler: connect failed section=%s status=%d message=%s err=%v", section, status, message, err)
+			slog.Warn("ws handler connect failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Int("status", status), slog.String("message", message), slog.Any("error", err))
 			if status >= http.StatusInternalServerError {
 				logger.Errorf("ws connect failed entity=%s section=%s ip=%s reqID=%s: %v", entity, section, peerIP, requestID, err)
 			} else {
@@ -110,7 +109,7 @@ func NewWebsocketHandler(
 
 		conn, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 		if err != nil {
-			log.Printf("ws handler: upgrade failed section=%s err=%v", section, err)
+			slog.Error("ws handler upgrade failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
 			logger.Errorf("ws upgrade failed entity=%s section=%s ip=%s reqID=%s: %v", entity, section, peerIP, requestID, err)
 			return err
 		}
@@ -119,94 +118,43 @@ func NewWebsocketHandler(
 		userID := claims.RegisteredClaims.Subject
 		sessionID := claims.SessionID
 		roles := claims.Roles
-		log.Printf("ws handler: upgrade success section=%s user=%s session=%s roles=%v", section, userID, sessionID, roles)
+		slog.Info("ws handler upgrade success", slog.String("entity", entity), slog.String("sectionId", section), slog.String("userId", userID), slog.String("sessionId", sessionID), slog.Any("roles", roles))
 
 		commandHandler := func(cmdCtx context.Context, client *infrastructure.Client, cmd infrastructure.Command) {
 			action := strings.ToLower(strings.TrimSpace(cmd.Action))
 			switch action {
 			case "list_restaurants", "fetch_all", "list":
-				var payload struct {
-					Page      int    `json:"page"`
-					Limit     int    `json:"limit"`
-					Search    string `json:"search"`
-					SortBy    string `json:"sortBy"`
-					SortOrder string `json:"sortOrder"`
-				}
+				var payload domain.ListRestaurantsCommand
 				if len(cmd.Payload) > 0 {
 					if err := json.Unmarshal(cmd.Payload, &payload); err != nil {
-						log.Printf("ws handler: list payload decode failed section=%s err=%v", section, err)
+						slog.Warn("ws handler list payload decode failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
 						sendCommandError(client, entity, section, "list", "invalid payload")
 						return
 					}
 				}
-				params := port.SectionListOptions{
-					Page:      payload.Page,
-					Limit:     payload.Limit,
-					Search:    payload.Search,
-					SortBy:    payload.SortBy,
-					SortOrder: payload.SortOrder,
-				}
-				snapshot, normalized, err := connectUC.ListRestaurants(cmdCtx, token, section, params)
+				message, err := connectUC.HandleListRestaurantsCommand(cmdCtx, token, section, payload, entity)
 				if err != nil {
-					log.Printf("ws handler: list fetch failed section=%s err=%v", section, err)
+					slog.Warn("ws handler list fetch failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
 					sendCommandError(client, entity, section, "list", err.Error())
 					return
 				}
-				metadata := map[string]string{
-					"sectionId": section,
-					"page":      strconv.Itoa(normalized.Page),
-					"limit":     strconv.Itoa(normalized.Limit),
-				}
-				if trimmed := strings.TrimSpace(normalized.Search); trimmed != "" {
-					metadata["search"] = trimmed
-				}
-				if normalized.SortBy != "" {
-					metadata["sortBy"] = normalized.SortBy
-				}
-				if normalized.SortOrder != "" {
-					metadata["sortOrder"] = normalized.SortOrder
-				}
-				message := &domain.Message{
-					Topic:      entity + ".list",
-					Entity:     entity,
-					Action:     "list",
-					ResourceID: section,
-					Metadata:   metadata,
-					Data:       snapshot.Payload,
-					Timestamp:  time.Now().UTC(),
-				}
 				client.SendDomainMessage(message)
 			case "get_restaurant", "fetch_one", "detail":
-				var payload struct {
-					ID string `json:"id"`
-				}
+				var payload domain.GetRestaurantCommand
 				if err := json.Unmarshal(cmd.Payload, &payload); err != nil || strings.TrimSpace(payload.ID) == "" {
-					log.Printf("ws handler: detail payload decode failed section=%s err=%v", section, err)
+					slog.Warn("ws handler detail payload decode failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
 					sendCommandError(client, entity, section, "detail", "invalid payload")
 					return
 				}
-				snapshot, err := connectUC.GetRestaurant(cmdCtx, token, section, payload.ID)
+				message, err := connectUC.HandleGetRestaurantCommand(cmdCtx, token, section, payload, entity)
 				if err != nil {
-					log.Printf("ws handler: detail fetch failed section=%s restaurant=%s err=%v", section, payload.ID, err)
+					slog.Warn("ws handler detail fetch failed", slog.String("entity", entity), slog.String("sectionId", section), slog.String("restaurantId", payload.ID), slog.Any("error", err))
 					sendCommandError(client, entity, section, "detail", err.Error())
 					return
 				}
-				metadata := map[string]string{
-					"sectionId":    section,
-					"restaurantId": strings.TrimSpace(payload.ID),
-				}
-				message := &domain.Message{
-					Topic:      entity + ".detail",
-					Entity:     entity,
-					Action:     "detail",
-					ResourceID: strings.TrimSpace(payload.ID),
-					Metadata:   metadata,
-					Data:       snapshot.Payload,
-					Timestamp:  time.Now().UTC(),
-				}
 				client.SendDomainMessage(message)
 			default:
-				log.Printf("ws handler: unknown action section=%s action=%s", section, cmd.Action)
+				slog.Debug("ws handler unknown action", slog.String("entity", entity), slog.String("sectionId", section), slog.String("action", cmd.Action))
 				sendCommandError(client, entity, section, "unknown", "unsupported action")
 			}
 		}
@@ -237,7 +185,7 @@ func NewWebsocketHandler(
 			Timestamp: time.Now().UTC(),
 		}
 		client.SendDomainMessage(connected)
-		log.Printf("ws handler: sent system.connected section=%s user=%s session=%s", section, userID, sessionID)
+		slog.Info("ws handler sent system.connected", slog.String("entity", entity), slog.String("sectionId", section), slog.String("userId", userID), slog.String("sessionId", sessionID))
 
 		logger.Infof("ws connected entity=%s section=%s user=%s session=%s roles=%v ip=%s reqID=%s",
 			entity, section, userID, sessionID, roles, peerIP, requestID)

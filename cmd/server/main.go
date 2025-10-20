@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"mesaYaWs/internal/app"
 	"mesaYaWs/internal/broker"
 	"mesaYaWs/internal/config"
@@ -13,23 +15,40 @@ import (
 	"mesaYaWs/internal/realtime/infrastructure"
 	"mesaYaWs/internal/realtime/transport"
 	"mesaYaWs/internal/shared/auth"
+	"mesaYaWs/internal/shared/logging"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 )
 
 func main() {
-	cfg := config.Load()
-
-	logFile, err := setupLogging(cfg.LogDir)
+	// Attempt to load variables from .env so local runs honour configuration tweaks.
+	if err := godotenv.Overload(); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			fmt.Fprintf(os.Stderr, ".env load warning: %v\n", err)
+		}
+	}
+	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("failed to initialize logging: %v", err)
+		fmt.Fprintf(os.Stderr, "config load error: %v\n", err)
+		os.Exit(1)
+	}
+
+	logFile, logger, err := setupLogging(cfg.Logging)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "logging setup error: %v\n", err)
+		os.Exit(1)
 	}
 	defer logFile.Close()
+	slog.SetDefault(logger)
+	slog.Info("logging initialized", slog.String("directory", cfg.Logging.Directory), slog.String("level", cfg.Logging.Level), slog.String("format", cfg.Logging.Format))
+	slog.Info("kafka env snapshot", slog.String("KAFKA_BROKERS", os.Getenv("KAFKA_BROKERS")), slog.String("KAFKA_BROKER", os.Getenv("KAFKA_BROKER")))
+	slog.Info("kafka config resolved", slog.Any("brokers", cfg.Kafka.Brokers), slog.String("group", cfg.Kafka.GroupID))
 
 	hub := app.NewAppHub()
 	registry := infrastructure.NewHandlerRegistry()
@@ -42,32 +61,34 @@ func main() {
 	e.Logger.SetOutput(log.Writer())
 
 	// JWT validator used to validate tokens issued by the Nest auth service
-	validator := auth.NewJWTValidator(cfg.JWTSecret)
-	snapshotFetcher := infrastructure.NewSectionSnapshotHTTPClient(cfg.RestBaseURL, nil)
+	validator := auth.NewJWTValidator(cfg.Security.JWTSecret)
+	snapshotFetcher := infrastructure.NewSectionSnapshotHTTPClient(cfg.REST.BaseURL, cfg.REST.Timeout, nil)
 	connectUC := usecase.NewConnectSectionUseCase(validator, snapshotFetcher)
 
 	// Registrar handlers de tópicos (cada feature)
 	registry.Register(&handler.UserCreatedHandler{UseCase: broadcastUC})
-	for entity, topic := range cfg.EntityTopics {
-		registry.Register(handler.NewEntityStreamHandler(entity, topic, cfg.AllowedActions, broadcastUC, connectUC))
+	for entity, topics := range cfg.Kafka.Topics {
+		for _, topic := range topics {
+			registry.Register(handler.NewEntityStreamHandler(entity, topic, cfg.Websocket.AllowedActions, broadcastUC, connectUC))
+		}
 	}
 
 	// Iniciar Kafka consumers (registrar topics desde config)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	// gather topics from config
-	topics := make([]string, 0, len(cfg.EntityTopics))
-	for _, t := range cfg.EntityTopics {
-		topics = append(topics, t)
+	topics := make([]string, 0)
+	for _, topicList := range cfg.Kafka.Topics {
+		topics = append(topics, topicList...)
 	}
-	broker.StartKafkaConsumers(ctx, registry, cfg.KafkaBrokers, topics)
+	broker.StartKafkaConsumers(ctx, registry, cfg.Kafka.Brokers, cfg.Kafka.GroupID, topics)
 
 	// expose websocket route for restaurant sections: /ws/restaurant/:section/:token
-	e.GET("/ws/restaurant/:section/:token", transport.NewWebsocketHandler(hub, connectUC, "restaurants", cfg.AllowedActions))
+	e.GET("/ws/restaurant/:section/:token", transport.NewWebsocketHandler(hub, connectUC, cfg.Websocket.DefaultEntity, cfg.Websocket.AllowedActions))
 
 	go func() {
-		if err := e.Start(":" + cfg.ServerPort); err != nil {
-			log.Fatal(err)
+		if err := e.Start(":" + cfg.Server.Port); err != nil {
+			slog.Error("http server stopped", slog.Any("error", err))
 		}
 	}()
 
@@ -75,27 +96,33 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
-	log.Println("Shutting down...")
+	slog.Info("shutting down")
 	e.Close()
 }
 
-func setupLogging(dir string) (*os.File, error) {
+func setupLogging(cfg config.LoggingConfig) (*os.File, *slog.Logger, error) {
+	dir := cfg.Directory
 	if dir == "" {
 		dir = "./logs"
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("create log dir: %w", err)
+		return nil, nil, fmt.Errorf("create log dir: %w", err)
 	}
 	fileName := filepath.Join(dir, time.Now().UTC().Format("2006-01-02")+".log")
 	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
-		return nil, fmt.Errorf("open log file: %w", err)
+		return nil, nil, fmt.Errorf("open log file: %w", err)
 	}
 
-	mw := io.MultiWriter(os.Stdout, file)
-	log.SetOutput(mw)
-	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
+	writer := io.MultiWriter(os.Stdout, file)
+	logger := logging.New(writer, logging.Config{
+		Level:     cfg.Level,
+		Format:    cfg.Format,
+		AddSource: true,
+	})
+	log.SetOutput(writer)
+	log.SetFlags(0)
+	log.SetPrefix("")
 
-	log.Printf("logging initialized file=%s", fileName)
-	return file, nil
+	return file, logger, nil
 }

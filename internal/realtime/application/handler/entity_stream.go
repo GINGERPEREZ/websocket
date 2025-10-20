@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 
 	"mesaYaWs/internal/realtime/application/port"
@@ -62,9 +63,6 @@ func (h *EntityStreamHandler) refreshSnapshot(ctx context.Context, msg *domain.M
 	if sectionID == "" && msg.Metadata != nil {
 		sectionID = strings.TrimSpace(msg.Metadata["sectionId"])
 	}
-	if sectionID == "" {
-		return
-	}
 	entityName := h.entity
 	if entityName == "" {
 		entityName = strings.TrimSpace(msg.Entity)
@@ -72,7 +70,13 @@ func (h *EntityStreamHandler) refreshSnapshot(ctx context.Context, msg *domain.M
 	if entityName == "" {
 		return
 	}
-	h.connectUC.RefreshSectionSnapshots(ctx, entityName, sectionID, h.broadcastUC)
+	if sectionID != "" {
+		slog.Info("entity-stream refresh", slog.String("entity", entityName), slog.String("action", msg.Action), slog.String("sectionId", sectionID))
+		h.connectUC.RefreshSectionSnapshots(ctx, entityName, sectionID, h.broadcastUC)
+		return
+	}
+	slog.Info("entity-stream refresh all sections", slog.String("entity", entityName), slog.String("action", msg.Action))
+	h.connectUC.RefreshAllSections(ctx, entityName, h.broadcastUC)
 }
 
 var _ port.TopicHandler = (*EntityStreamHandler)(nil)

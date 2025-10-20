@@ -1,12 +1,10 @@
 package usecase
 
 import (
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"mesaYaWs/internal/realtime/application/port"
 	"mesaYaWs/internal/realtime/domain"
 )
 
@@ -23,9 +21,10 @@ type snapshotCache struct {
 
 type snapshotCacheEntry struct {
 	sectionID   string
+	scope       string
 	kind        string
 	key         string
-	listOptions port.SectionListOptions
+	listOptions domain.PagedQuery
 	resourceID  string
 	token       string
 	snapshot    *domain.SectionSnapshot
@@ -36,7 +35,7 @@ func newSnapshotCache() *snapshotCache {
 	return &snapshotCache{entries: make(map[string]map[string]*snapshotCacheEntry)}
 }
 
-func (c *snapshotCache) set(sectionID, kind string, options port.SectionListOptions, resourceID, token string, snapshot *domain.SectionSnapshot) {
+func (c *snapshotCache) set(sectionID, scope, kind string, options domain.PagedQuery, resourceID, token string, snapshot *domain.SectionSnapshot) {
 	sectionID = strings.TrimSpace(sectionID)
 	if sectionID == "" {
 		return
@@ -46,9 +45,10 @@ func (c *snapshotCache) set(sectionID, kind string, options port.SectionListOpti
 	if c.entries[sectionID] == nil {
 		c.entries[sectionID] = make(map[string]*snapshotCacheEntry)
 	}
-	key := cacheEntryKey(kind, options, resourceID)
+	key := cacheEntryKey(scope, kind, options, resourceID)
 	c.entries[sectionID][key] = &snapshotCacheEntry{
 		sectionID:   sectionID,
+		scope:       strings.TrimSpace(scope),
 		kind:        kind,
 		key:         key,
 		listOptions: options,
@@ -59,14 +59,14 @@ func (c *snapshotCache) set(sectionID, kind string, options port.SectionListOpti
 	}
 }
 
-func (c *snapshotCache) get(sectionID, kind string, options port.SectionListOptions, resourceID string) (*snapshotCacheEntry, bool) {
+func (c *snapshotCache) get(sectionID, scope, kind string, options domain.PagedQuery, resourceID string) (*snapshotCacheEntry, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	sec := c.entries[strings.TrimSpace(sectionID)]
 	if sec == nil {
 		return nil, false
 	}
-	key := cacheEntryKey(kind, options, resourceID)
+	key := cacheEntryKey(scope, kind, options, resourceID)
 	entry, ok := sec[key]
 	if !ok {
 		return nil, false
@@ -74,7 +74,7 @@ func (c *snapshotCache) get(sectionID, kind string, options port.SectionListOpti
 	return entry.clone(), true
 }
 
-func (c *snapshotCache) delete(sectionID, kind string, options port.SectionListOptions, resourceID string) {
+func (c *snapshotCache) delete(sectionID, scope, kind string, options domain.PagedQuery, resourceID string) {
 	sectionID = strings.TrimSpace(sectionID)
 	if sectionID == "" {
 		return
@@ -82,7 +82,7 @@ func (c *snapshotCache) delete(sectionID, kind string, options port.SectionListO
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if sec := c.entries[sectionID]; sec != nil {
-		key := cacheEntryKey(kind, options, resourceID)
+		key := cacheEntryKey(scope, kind, options, resourceID)
 		delete(sec, key)
 		if len(sec) == 0 {
 			delete(c.entries, sectionID)
@@ -104,6 +104,23 @@ func (c *snapshotCache) entriesForSection(sectionID string) []*snapshotCacheEntr
 	return results
 }
 
+func (c *snapshotCache) sectionIDs() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if len(c.entries) == 0 {
+		return nil
+	}
+	results := make([]string, 0, len(c.entries))
+	for sectionID := range c.entries {
+		trimmed := strings.TrimSpace(sectionID)
+		if trimmed == "" {
+			continue
+		}
+		results = append(results, trimmed)
+	}
+	return results
+}
+
 func (e *snapshotCacheEntry) clone() *snapshotCacheEntry {
 	if e == nil {
 		return nil
@@ -112,45 +129,12 @@ func (e *snapshotCacheEntry) clone() *snapshotCacheEntry {
 	return &cloned
 }
 
-func cacheEntryKey(kind string, options port.SectionListOptions, resourceID string) string {
+func cacheEntryKey(scope, kind string, options domain.PagedQuery, resourceID string) string {
+	trimmedScope := strings.ToLower(strings.TrimSpace(scope))
 	switch strings.ToLower(kind) {
 	case cacheKindItem:
-		return cacheKindItem + cacheDelimiter + strings.TrimSpace(resourceID)
+		return trimmedScope + cacheDelimiter + cacheKindItem + cacheDelimiter + strings.TrimSpace(resourceID)
 	default:
-		return cacheKindList + cacheDelimiter + canonicalListOptions(options)
+		return trimmedScope + cacheDelimiter + cacheKindList + cacheDelimiter + options.CanonicalKey()
 	}
-}
-
-func canonicalListOptions(options port.SectionListOptions) string {
-	page := options.Page
-	if page <= 0 {
-		page = 1
-	}
-
-	limit := options.Limit
-	if limit <= 0 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
-	}
-
-	search := strings.ToLower(strings.TrimSpace(options.Search))
-	sortBy := strings.ToLower(strings.TrimSpace(options.SortBy))
-	sortOrder := strings.ToUpper(strings.TrimSpace(options.SortOrder))
-
-	var builder strings.Builder
-	builder.Grow(len(search) + len(sortBy) + len(sortOrder) + 32)
-	builder.WriteString("page=")
-	builder.WriteString(strconv.Itoa(page))
-	builder.WriteString("&limit=")
-	builder.WriteString(strconv.Itoa(limit))
-	builder.WriteString("&search=")
-	builder.WriteString(search)
-	builder.WriteString("&sortBy=")
-	builder.WriteString(sortBy)
-	builder.WriteString("&sortOrder=")
-	builder.WriteString(sortOrder)
-
-	return builder.String()
 }

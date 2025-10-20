@@ -3,7 +3,7 @@ package broker
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"mesaYaWs/internal/realtime/domain"
 	"strings"
 	"time"
@@ -29,12 +29,21 @@ func (c *KafkaConsumer) Consume(ctx context.Context, handler func(*domain.Messag
 	for {
 		m, err := c.reader.ReadMessage(ctx)
 		if err != nil {
-			log.Printf("kafka read error: %v", err)
+			slog.Warn("kafka read error", slog.Any("error", err))
 			continue
 		}
 		msg := decodeMessage(m)
+		slog.Info("kafka message consumed",
+			slog.String("topic", m.Topic),
+			slog.Int("partition", m.Partition),
+			slog.Int64("offset", m.Offset),
+			slog.String("entity", msg.Entity),
+			slog.String("action", msg.Action),
+			slog.String("resourceId", msg.ResourceID),
+			slog.Any("metadata", msg.Metadata),
+		)
 		if err := handler(msg); err != nil {
-			log.Printf("handler error: %v", err)
+			slog.Warn("kafka handler error", slog.Any("error", err))
 		}
 	}
 }
@@ -54,8 +63,9 @@ func decodeMessage(m kafka.Message) *domain.Message {
 	var event rawEvent
 	if err := json.Unmarshal(m.Value, &event); err != nil {
 		msg.Topic = m.Topic
-		msg.Entity = normalizeTopic(m.Topic)
-		msg.Action = "raw"
+		entity, action := inferEntityActionFromTopic(m.Topic)
+		msg.Entity = entity
+		msg.Action = action
 		msg.Data = string(m.Value)
 		return msg
 	}
@@ -73,6 +83,21 @@ func decodeMessage(m kafka.Message) *domain.Message {
 	}
 
 	return msg
+}
+
+func inferEntityActionFromTopic(topic string) (string, string) {
+	parts := strings.Split(topic, ".")
+	if len(parts) >= 2 {
+		entity := strings.TrimSpace(parts[len(parts)-2])
+		action := strings.TrimSpace(parts[len(parts)-1])
+		if entity != "" && action != "" {
+			return entity, action
+		}
+	}
+	if entity := normalizeTopic(topic); entity != "" {
+		return entity, "unknown"
+	}
+	return "", "unknown"
 }
 
 func firstNonEmpty(values ...string) string {

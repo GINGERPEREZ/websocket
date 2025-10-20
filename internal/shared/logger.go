@@ -1,11 +1,16 @@
 package shared
 
-import "log"
+import "log/slog"
 
-func Info(msg string) {
-	log.Printf("[INFO] %s", msg)
+// Info proxies to the global slog logger to preserve compatibility with legacy helpers.
+func Info(msg string, args ...any) {
+	slog.Info(msg, args...)
 }
 
-func Error(err error) {
-	log.Printf("[ERROR] %v", err)
+// Error proxies to the global slog logger while keeping the original signature.
+func Error(err error, args ...any) {
+	if err == nil {
+		return
+	}
+	slog.Error(err.Error(), args...)
 }
