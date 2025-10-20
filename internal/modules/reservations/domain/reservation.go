@@ -32,15 +32,15 @@ func NormalizeReservation(raw map[string]any) (Reservation, bool) {
 
 	reservation := Reservation{
 		ID:               id,
-	RestaurantID:     normalization.AsString(raw["restaurantId"]),
-	SectionID:        normalization.AsString(raw["sectionId"]),
-	TableID:          normalization.AsString(raw["tableId"]),
-	ReservationDate:  normalization.AsString(raw["reservationDate"]),
-	ReservationTime:  normalization.AsString(raw["reservationTime"]),
-	Guests:           normalization.AsInt(raw["numberOfGuests"]),
-	CustomerName:     normalization.AsString(raw["customerName"]),
-	CustomerPhone:    normalization.AsString(raw["customerPhone"]),
-	CustomerComments: normalization.AsString(raw["comments"]),
+		RestaurantID:     normalization.AsString(raw["restaurantId"]),
+		SectionID:        normalization.AsString(raw["sectionId"]),
+		TableID:          normalization.AsString(raw["tableId"]),
+		ReservationDate:  normalization.AsString(raw["reservationDate"]),
+		ReservationTime:  normalization.AsString(raw["reservationTime"]),
+		Guests:           normalization.AsInt(raw["numberOfGuests"]),
+		CustomerName:     normalization.AsString(raw["customerName"]),
+		CustomerPhone:    normalization.AsString(raw["customerPhone"]),
+		CustomerComments: normalization.AsString(raw["comments"]),
 	}
 
 	status := NormalizeReservationStatus(raw["status"])
@@ -61,7 +61,7 @@ func BuildReservationList(payload any) (*ReservationList, bool) {
 
 	rawItems := normalization.AsInterfaceSlice(container["items"])
 	if len(rawItems) == 0 {
-	rawItems = normalization.AsInterfaceSlice(container["reservations"])
+		rawItems = normalization.AsInterfaceSlice(container["reservations"])
 	}
 	if len(rawItems) == 0 {
 		return nil, false

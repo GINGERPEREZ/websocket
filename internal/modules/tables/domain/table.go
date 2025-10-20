@@ -30,14 +30,14 @@ func NormalizeTable(raw map[string]any) (Table, bool) {
 	}
 	table := Table{
 		ID:           id,
-	SectionID:    normalization.AsString(raw["sectionId"]),
-	Number:       normalization.AsInt(raw["number"]),
-	Capacity:     normalization.AsInt(raw["capacity"]),
-	PosX:         normalization.AsFloat64(raw["posX"]),
-	PosY:         normalization.AsFloat64(raw["posY"]),
-	Width:        normalization.AsFloat64(raw["width"]),
-	TableImageID: normalization.AsInt(raw["tableImageId"]),
-	ChairImageID: normalization.AsInt(raw["chairImageId"]),
+		SectionID:    normalization.AsString(raw["sectionId"]),
+		Number:       normalization.AsInt(raw["number"]),
+		Capacity:     normalization.AsInt(raw["capacity"]),
+		PosX:         normalization.AsFloat64(raw["posX"]),
+		PosY:         normalization.AsFloat64(raw["posY"]),
+		Width:        normalization.AsFloat64(raw["width"]),
+		TableImageID: normalization.AsInt(raw["tableImageId"]),
+		ChairImageID: normalization.AsInt(raw["chairImageId"]),
 	}
 
 	state := NormalizeTableState(raw["state"])
@@ -58,7 +58,7 @@ func BuildTableList(payload any) (*TableList, bool) {
 
 	rawItems := normalization.AsInterfaceSlice(container["items"])
 	if len(rawItems) == 0 {
-	rawItems = normalization.AsInterfaceSlice(container["tables"])
+		rawItems = normalization.AsInterfaceSlice(container["tables"])
 	}
 	if len(rawItems) == 0 {
 		return nil, false
