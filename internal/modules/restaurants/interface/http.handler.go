@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"mesaYaWs/internal/modules/realtime/application/port"
-	"mesaYaWs/internal/modules/realtime/application/usecase"
-	"mesaYaWs/internal/modules/realtime/domain"
-	"mesaYaWs/internal/modules/realtime/infrastructure"
+	"mesaYaWs/internal/modules/restaurants/application/port"
+	"mesaYaWs/internal/modules/restaurants/application/usecase"
+	"mesaYaWs/internal/modules/restaurants/domain"
+	"mesaYaWs/internal/modules/restaurants/infrastructure"
 	"mesaYaWs/internal/shared/auth"
 
 	"github.com/gorilla/websocket"

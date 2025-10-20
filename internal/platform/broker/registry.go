@@ -2,8 +2,8 @@ package broker
 
 import (
 	"context"
-	"mesaYaWs/internal/modules/realtime/domain"
-	"mesaYaWs/internal/modules/realtime/infrastructure"
+	"mesaYaWs/internal/modules/restaurants/domain"
+	"mesaYaWs/internal/modules/restaurants/infrastructure"
 )
 
 func StartKafkaConsumers(
