@@ -67,6 +67,9 @@ func (uc *ConnectSectionUseCase) RefreshSectionSnapshots(ctx context.Context, en
 		return
 	}
 	for _, entry := range entries {
+		if entity != "" && !strings.EqualFold(entry.scope, entity) {
+			continue
+		}
 		switch entry.kind {
 		case cacheKindItem:
 			uc.refreshItem(ctx, entry.scope, sectionID, entry, broadcaster)
@@ -75,6 +78,12 @@ func (uc *ConnectSectionUseCase) RefreshSectionSnapshots(ctx context.Context, en
 		default:
 			slog.Warn("connect-section unknown cache kind", slog.String("kind", entry.kind), slog.String("sectionId", sectionID))
 		}
+	}
+}
+
+func (uc *ConnectSectionUseCase) RefreshAllSections(ctx context.Context, entity string, broadcaster *BroadcastUseCase) {
+	for _, sectionID := range uc.cache.sectionIDs() {
+		uc.RefreshSectionSnapshots(ctx, entity, sectionID, broadcaster)
 	}
 }
 

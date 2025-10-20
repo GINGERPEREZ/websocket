@@ -104,6 +104,23 @@ func (c *snapshotCache) entriesForSection(sectionID string) []*snapshotCacheEntr
 	return results
 }
 
+func (c *snapshotCache) sectionIDs() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if len(c.entries) == 0 {
+		return nil
+	}
+	results := make([]string, 0, len(c.entries))
+	for sectionID := range c.entries {
+		trimmed := strings.TrimSpace(sectionID)
+		if trimmed == "" {
+			continue
+		}
+		results = append(results, trimmed)
+	}
+	return results
+}
+
 func (e *snapshotCacheEntry) clone() *snapshotCacheEntry {
 	if e == nil {
 		return nil

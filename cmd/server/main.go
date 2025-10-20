@@ -47,6 +47,8 @@ func main() {
 	defer logFile.Close()
 	slog.SetDefault(logger)
 	slog.Info("logging initialized", slog.String("directory", cfg.Logging.Directory), slog.String("level", cfg.Logging.Level), slog.String("format", cfg.Logging.Format))
+	slog.Info("kafka env snapshot", slog.String("KAFKA_BROKERS", os.Getenv("KAFKA_BROKERS")), slog.String("KAFKA_BROKER", os.Getenv("KAFKA_BROKER")))
+	slog.Info("kafka config resolved", slog.Any("brokers", cfg.Kafka.Brokers), slog.String("group", cfg.Kafka.GroupID))
 
 	hub := app.NewAppHub()
 	registry := infrastructure.NewHandlerRegistry()

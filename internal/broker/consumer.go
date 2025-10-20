@@ -33,6 +33,15 @@ func (c *KafkaConsumer) Consume(ctx context.Context, handler func(*domain.Messag
 			continue
 		}
 		msg := decodeMessage(m)
+		slog.Info("kafka message consumed",
+			slog.String("topic", m.Topic),
+			slog.Int("partition", m.Partition),
+			slog.Int64("offset", m.Offset),
+			slog.String("entity", msg.Entity),
+			slog.String("action", msg.Action),
+			slog.String("resourceId", msg.ResourceID),
+			slog.Any("metadata", msg.Metadata),
+		)
 		if err := handler(msg); err != nil {
 			slog.Warn("kafka handler error", slog.Any("error", err))
 		}
