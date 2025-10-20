@@ -1,5 +1,7 @@
 package domain
 
+import "mesaYaWs/internal/shared/normalization"
+
 // Reservation represents a booking request associated with a restaurant table.
 type Reservation struct {
 	ID               string
@@ -23,22 +25,22 @@ type ReservationList struct {
 
 // NormalizeReservation constructs a Reservation from a loosely typed map.
 func NormalizeReservation(raw map[string]any) (Reservation, bool) {
-	id := asString(raw["id"])
+	id := normalization.AsString(raw["id"])
 	if id == "" {
 		return Reservation{}, false
 	}
 
 	reservation := Reservation{
 		ID:               id,
-		RestaurantID:     asString(raw["restaurantId"]),
-		SectionID:        asString(raw["sectionId"]),
-		TableID:          asString(raw["tableId"]),
-		ReservationDate:  asString(raw["reservationDate"]),
-		ReservationTime:  asString(raw["reservationTime"]),
-		Guests:           asInt(raw["numberOfGuests"]),
-		CustomerName:     asString(raw["customerName"]),
-		CustomerPhone:    asString(raw["customerPhone"]),
-		CustomerComments: asString(raw["comments"]),
+	RestaurantID:     normalization.AsString(raw["restaurantId"]),
+	SectionID:        normalization.AsString(raw["sectionId"]),
+	TableID:          normalization.AsString(raw["tableId"]),
+	ReservationDate:  normalization.AsString(raw["reservationDate"]),
+	ReservationTime:  normalization.AsString(raw["reservationTime"]),
+	Guests:           normalization.AsInt(raw["numberOfGuests"]),
+	CustomerName:     normalization.AsString(raw["customerName"]),
+	CustomerPhone:    normalization.AsString(raw["customerPhone"]),
+	CustomerComments: normalization.AsString(raw["comments"]),
 	}
 
 	status := NormalizeReservationStatus(raw["status"])
@@ -52,14 +54,14 @@ func NormalizeReservation(raw map[string]any) (Reservation, bool) {
 
 // BuildReservationList projects payloads into a ReservationList.
 func BuildReservationList(payload any) (*ReservationList, bool) {
-	container := mapFromPayload(payload)
+	container := normalization.MapFromPayload(payload)
 	if len(container) == 0 {
 		return nil, false
 	}
 
-	rawItems := asInterfaceSlice(container["items"])
+	rawItems := normalization.AsInterfaceSlice(container["items"])
 	if len(rawItems) == 0 {
-		rawItems = asInterfaceSlice(container["reservations"])
+	rawItems = normalization.AsInterfaceSlice(container["reservations"])
 	}
 	if len(rawItems) == 0 {
 		return nil, false
@@ -77,7 +79,7 @@ func BuildReservationList(payload any) (*ReservationList, bool) {
 		return nil, false
 	}
 
-	if total := asInt(container["total"]); total > 0 {
+	if total := normalization.AsInt(container["total"]); total > 0 {
 		result.Total = total
 	} else {
 		result.Total = len(result.Items)
@@ -88,7 +90,7 @@ func BuildReservationList(payload any) (*ReservationList, bool) {
 
 // BuildReservationDetail extracts a single reservation projection from the payload.
 func BuildReservationDetail(payload any) (*Reservation, bool) {
-	container := mapFromPayload(payload)
+	container := normalization.MapFromPayload(payload)
 	if len(container) == 0 {
 		return nil, false
 	}

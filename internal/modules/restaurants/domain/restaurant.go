@@ -1,6 +1,10 @@
 package domain
 
-import "strings"
+import (
+	"strings"
+
+	"mesaYaWs/internal/shared/normalization"
+)
 
 // Restaurant represents the restaurant aggregate root exposed over realtime.
 type Restaurant struct {
@@ -33,13 +37,13 @@ func NormalizeRestaurant(raw map[string]any) (Restaurant, bool) {
 	resto := Restaurant{
 		ID:            strings.TrimSpace(id),
 		Name:          strings.TrimSpace(name),
-		Description:   asString(raw["description"]),
-		Location:      asString(raw["location"]),
+		Description:   normalization.AsString(raw["description"]),
+		Location:      normalization.AsString(raw["location"]),
 		DaysOpen:      NormalizeDaysOpen(raw["daysOpen"]),
 		Status:        NormalizeRestaurantStatus(raw["status"]),
-		TotalCapacity: asInt(raw["totalCapacity"]),
-		Subscription:  asInt(raw["subscriptionId"]),
-		ImageID:       asInt(raw["imageId"]),
+		TotalCapacity: normalization.AsInt(raw["totalCapacity"]),
+		Subscription:  normalization.AsInt(raw["subscriptionId"]),
+		ImageID:       normalization.AsInt(raw["imageId"]),
 	}
 	if schedule, ok := BuildSchedule(raw["openTime"], raw["closeTime"]); ok {
 		resto.Schedule = schedule
@@ -54,7 +58,7 @@ func BuildRestaurantList(payload any) (*RestaurantList, bool) {
 		return nil, false
 	}
 	rawItems := container["items"]
-	itemsSlice := asInterfaceSlice(rawItems)
+	itemsSlice := normalization.AsInterfaceSlice(rawItems)
 	if len(itemsSlice) == 0 {
 		return nil, false
 	}
@@ -66,7 +70,7 @@ func BuildRestaurantList(payload any) (*RestaurantList, bool) {
 			}
 		}
 	}
-	if total := asInt(container["total"]); total > 0 {
+	if total := normalization.AsInt(container["total"]); total > 0 {
 		result.Total = total
 	} else {
 		result.Total = len(result.Items)
@@ -79,7 +83,7 @@ func BuildRestaurantList(payload any) (*RestaurantList, bool) {
 
 // BuildRestaurantDetail tries to project an arbitrary payload into a Restaurant entity.
 func BuildRestaurantDetail(payload any) (*Restaurant, bool) {
-	raw := mapFromPayload(payload)
+	raw := normalization.MapFromPayload(payload)
 	if len(raw) == 0 {
 		return nil, false
 	}

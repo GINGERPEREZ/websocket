@@ -1,4 +1,4 @@
-package domain
+package normalization
 
 import (
 	"strconv"
@@ -6,7 +6,7 @@ import (
 )
 
 // asString trims and returns the string representation of value when possible.
-func asString(value any) string {
+func AsString(value any) string {
 	if s, ok := value.(string); ok {
 		return strings.TrimSpace(s)
 	}
@@ -14,7 +14,7 @@ func asString(value any) string {
 }
 
 // asInt coerces numeric values supported by the REST layer into Go ints.
-func asInt(value any) int {
+func AsInt(value any) int {
 	switch typed := value.(type) {
 	case float64:
 		return int(typed)
@@ -32,7 +32,7 @@ func asInt(value any) int {
 }
 
 // asFloat64 coerces numeric values (including numeric strings) into float64.
-func asFloat64(value any) float64 {
+func AsFloat64(value any) float64 {
 	switch typed := value.(type) {
 	case float64:
 		return typed
@@ -56,7 +56,7 @@ func asFloat64(value any) float64 {
 
 // asStringSlice trims each entry from an arbitrary slice preserving non-empty values.
 // asInterfaceSlice normalizes different collection types into a []any.
-func asInterfaceSlice(value any) []any {
+func AsInterfaceSlice(value any) []any {
 	switch typed := value.(type) {
 	case []any:
 		return typed
@@ -73,7 +73,7 @@ func asInterfaceSlice(value any) []any {
 
 // mapFromPayload attempts to unwrap common envelope structures (e.g. {"data": {...}})
 // into a plain map for normalization routines.
-func mapFromPayload(value any) map[string]any {
+func MapFromPayload(value any) map[string]any {
 	if value == nil {
 		return nil
 	}

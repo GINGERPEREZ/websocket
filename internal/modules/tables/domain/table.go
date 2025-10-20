@@ -1,5 +1,7 @@
 package domain
 
+import "mesaYaWs/internal/shared/normalization"
+
 // Table represents a seating resource within a section.
 type Table struct {
 	ID           string
@@ -22,20 +24,20 @@ type TableList struct {
 
 // NormalizeTable attempts to construct a Table from an arbitrary map payload.
 func NormalizeTable(raw map[string]any) (Table, bool) {
-	id := asString(raw["id"])
+	id := normalization.AsString(raw["id"])
 	if id == "" {
 		return Table{}, false
 	}
 	table := Table{
 		ID:           id,
-		SectionID:    asString(raw["sectionId"]),
-		Number:       asInt(raw["number"]),
-		Capacity:     asInt(raw["capacity"]),
-		PosX:         asFloat64(raw["posX"]),
-		PosY:         asFloat64(raw["posY"]),
-		Width:        asFloat64(raw["width"]),
-		TableImageID: asInt(raw["tableImageId"]),
-		ChairImageID: asInt(raw["chairImageId"]),
+	SectionID:    normalization.AsString(raw["sectionId"]),
+	Number:       normalization.AsInt(raw["number"]),
+	Capacity:     normalization.AsInt(raw["capacity"]),
+	PosX:         normalization.AsFloat64(raw["posX"]),
+	PosY:         normalization.AsFloat64(raw["posY"]),
+	Width:        normalization.AsFloat64(raw["width"]),
+	TableImageID: normalization.AsInt(raw["tableImageId"]),
+	ChairImageID: normalization.AsInt(raw["chairImageId"]),
 	}
 
 	state := NormalizeTableState(raw["state"])
@@ -49,14 +51,14 @@ func NormalizeTable(raw map[string]any) (Table, bool) {
 
 // BuildTableList tries to project the payload into a TableList structure.
 func BuildTableList(payload any) (*TableList, bool) {
-	container := mapFromPayload(payload)
+	container := normalization.MapFromPayload(payload)
 	if len(container) == 0 {
 		return nil, false
 	}
 
-	rawItems := asInterfaceSlice(container["items"])
+	rawItems := normalization.AsInterfaceSlice(container["items"])
 	if len(rawItems) == 0 {
-		rawItems = asInterfaceSlice(container["tables"])
+	rawItems = normalization.AsInterfaceSlice(container["tables"])
 	}
 	if len(rawItems) == 0 {
 		return nil, false
@@ -74,7 +76,7 @@ func BuildTableList(payload any) (*TableList, bool) {
 		return nil, false
 	}
 
-	if total := asInt(container["total"]); total > 0 {
+	if total := normalization.AsInt(container["total"]); total > 0 {
 		result.Total = total
 	} else {
 		result.Total = len(result.Items)
@@ -85,7 +87,7 @@ func BuildTableList(payload any) (*TableList, bool) {
 
 // BuildTableDetail attempts to extract a single table from the payload.
 func BuildTableDetail(payload any) (*Table, bool) {
-	container := mapFromPayload(payload)
+	container := normalization.MapFromPayload(payload)
 	if len(container) == 0 {
 		return nil, false
 	}

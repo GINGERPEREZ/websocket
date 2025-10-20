@@ -1,6 +1,10 @@
 package domain
 
-import "strings"
+import (
+	"strings"
+
+	"mesaYaWs/internal/shared/normalization"
+)
 
 // DayOfWeek encapsulates the allowed opening days using uppercase english names as per REST responses.
 type DayOfWeek string
@@ -27,7 +31,7 @@ var allowedDays = map[string]DayOfWeek{
 
 // NormalizeDaysOpen converts arbitrary slice payloads into a canonical day-of-week list.
 func NormalizeDaysOpen(value any) []DayOfWeek {
-	items := asInterfaceSlice(value)
+	items := normalization.AsInterfaceSlice(value)
 	if len(items) == 0 {
 		return nil
 	}
