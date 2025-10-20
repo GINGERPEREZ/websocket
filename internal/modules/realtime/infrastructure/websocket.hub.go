@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
-	"mesaYaWs/internal/realtime/domain"
+	"mesaYaWs/internal/modules/realtime/domain"
 	"strings"
 	"sync"
 	"time"

@@ -7,13 +7,12 @@ import (
 	"io"
 	"log"
 	"log/slog"
-	"mesaYaWs/internal/app"
-	"mesaYaWs/internal/broker"
 	"mesaYaWs/internal/config"
-	handler "mesaYaWs/internal/realtime/application/handler"
-	usecase "mesaYaWs/internal/realtime/application/usecase"
-	"mesaYaWs/internal/realtime/infrastructure"
-	"mesaYaWs/internal/realtime/transport"
+	handler "mesaYaWs/internal/modules/realtime/application/handler"
+	usecase "mesaYaWs/internal/modules/realtime/application/usecase"
+	"mesaYaWs/internal/modules/realtime/infrastructure"
+	transport "mesaYaWs/internal/modules/realtime/interface"
+	"mesaYaWs/internal/platform/broker"
 	"mesaYaWs/internal/shared/auth"
 	"mesaYaWs/internal/shared/logging"
 	"os"
@@ -50,7 +49,7 @@ func main() {
 	slog.Info("kafka env snapshot", slog.String("KAFKA_BROKERS", os.Getenv("KAFKA_BROKERS")), slog.String("KAFKA_BROKER", os.Getenv("KAFKA_BROKER")))
 	slog.Info("kafka config resolved", slog.Any("brokers", cfg.Kafka.Brokers), slog.String("group", cfg.Kafka.GroupID))
 
-	hub := app.NewAppHub()
+	hub := infrastructure.NewHub()
 	registry := infrastructure.NewHandlerRegistry()
 
 	// Use cases
