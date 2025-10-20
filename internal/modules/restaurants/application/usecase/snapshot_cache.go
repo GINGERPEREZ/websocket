@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"mesaYaWs/internal/modules/realtime/domain"
+	"mesaYaWs/internal/modules/restaurants/domain"
 )
 
 const (

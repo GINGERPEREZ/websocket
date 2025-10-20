@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"mesaYaWs/internal/modules/realtime/domain"
+	"mesaYaWs/internal/modules/restaurants/domain"
 )
 
 var (
