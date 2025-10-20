@@ -4,6 +4,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	reservations "mesaYaWs/internal/modules/reservations/domain"
+	tables "mesaYaWs/internal/modules/tables/domain"
 )
 
 // BuildListMessage composes a realtime message for list operations using typed metadata when available.
@@ -196,19 +199,19 @@ type tableStateSummary struct {
 	cleaning  int
 }
 
-func summarizeTableStates(tables []Table) tableStateSummary {
+func summarizeTableStates(items []tables.Table) tableStateSummary {
 	summary := tableStateSummary{}
-	for _, table := range tables {
+	for _, table := range items {
 		switch table.State {
-		case TableStateAvailable:
+		case tables.TableStateAvailable:
 			summary.available++
-		case TableStateReserved:
+		case tables.TableStateReserved:
 			summary.reserved++
-		case TableStateSeated:
+		case tables.TableStateSeated:
 			summary.seated++
-		case TableStateBlocked:
+		case tables.TableStateBlocked:
 			summary.blocked++
-		case TableStateCleaning:
+		case tables.TableStateCleaning:
 			summary.cleaning++
 		}
 	}
@@ -224,21 +227,21 @@ type reservationStatusSummary struct {
 	noShow    int
 }
 
-func summarizeReservationStatuses(reservations []Reservation) reservationStatusSummary {
+func summarizeReservationStatuses(items []reservations.Reservation) reservationStatusSummary {
 	summary := reservationStatusSummary{}
-	for _, reservation := range reservations {
+	for _, reservation := range items {
 		switch reservation.Status {
-		case ReservationStatusPending:
+		case reservations.ReservationStatusPending:
 			summary.pending++
-		case ReservationStatusConfirmed:
+		case reservations.ReservationStatusConfirmed:
 			summary.confirmed++
-		case ReservationStatusSeated:
+		case reservations.ReservationStatusSeated:
 			summary.seated++
-		case ReservationStatusCompleted:
+		case reservations.ReservationStatusCompleted:
 			summary.completed++
-		case ReservationStatusCancelled:
+		case reservations.ReservationStatusCancelled:
 			summary.cancelled++
-		case ReservationStatusNoShow:
+		case reservations.ReservationStatusNoShow:
 			summary.noShow++
 		}
 	}

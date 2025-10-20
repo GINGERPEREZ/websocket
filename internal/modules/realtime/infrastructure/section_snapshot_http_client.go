@@ -11,8 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"mesaYaWs/internal/modules/restaurants/application/port"
-	"mesaYaWs/internal/modules/restaurants/domain"
+	"mesaYaWs/internal/modules/realtime/application/port"
+	"mesaYaWs/internal/modules/realtime/domain"
+	reservations "mesaYaWs/internal/modules/reservations/domain"
+	restaurants "mesaYaWs/internal/modules/restaurants/domain"
+	tables "mesaYaWs/internal/modules/tables/domain"
 )
 
 // SectionSnapshotHTTPClient implements SectionSnapshotFetcher using the REST API described in swagger.json.
@@ -230,22 +233,22 @@ func decodeSectionSnapshot(body io.Reader) (*domain.SectionSnapshot, error) {
 
 	normalized := normalizeSnapshotPayload(payload)
 	snapshot := &domain.SectionSnapshot{Payload: normalized}
-	if list, ok := domain.BuildRestaurantList(normalized); ok {
+	if list, ok := restaurants.BuildRestaurantList(normalized); ok {
 		snapshot.RestaurantList = list
 	}
-	if restaurant, ok := domain.BuildRestaurantDetail(normalized); ok {
+	if restaurant, ok := restaurants.BuildRestaurantDetail(normalized); ok {
 		snapshot.Restaurant = restaurant
 	}
-	if tables, ok := domain.BuildTableList(normalized); ok {
-		snapshot.TableList = tables
+	if tableList, ok := tables.BuildTableList(normalized); ok {
+		snapshot.TableList = tableList
 	}
-	if table, ok := domain.BuildTableDetail(normalized); ok {
+	if table, ok := tables.BuildTableDetail(normalized); ok {
 		snapshot.Table = table
 	}
-	if reservations, ok := domain.BuildReservationList(normalized); ok {
-		snapshot.ReservationList = reservations
+	if reservationList, ok := reservations.BuildReservationList(normalized); ok {
+		snapshot.ReservationList = reservationList
 	}
-	if reservation, ok := domain.BuildReservationDetail(normalized); ok {
+	if reservation, ok := reservations.BuildReservationDetail(normalized); ok {
 		snapshot.Reservation = reservation
 	}
 	return snapshot, nil

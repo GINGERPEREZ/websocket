@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
-	"mesaYaWs/internal/modules/restaurants/domain"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"mesaYaWs/internal/modules/realtime/domain"
 )
 
 type Client struct {

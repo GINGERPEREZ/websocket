@@ -3,6 +3,10 @@ package domain
 import (
 	"testing"
 	"time"
+
+	reservations "mesaYaWs/internal/modules/reservations/domain"
+	restaurants "mesaYaWs/internal/modules/restaurants/domain"
+	tables "mesaYaWs/internal/modules/tables/domain"
 )
 
 func TestBuildDetailMessageIncludesDaysOpenMetadata(t *testing.T) {
@@ -10,37 +14,37 @@ func TestBuildDetailMessageIncludesDaysOpenMetadata(t *testing.T) {
 	close, _ := time.Parse("15:04", "18:00")
 	snapshot := &SectionSnapshot{
 		Payload: map[string]any{"id": "rest-1"},
-		Restaurant: &Restaurant{
+		Restaurant: &restaurants.Restaurant{
 			ID:     "rest-1",
 			Name:   "  Fancy Place  ",
-			Status: RestaurantStatusActive,
-			Schedule: Schedule{
+			Status: restaurants.RestaurantStatusActive,
+			Schedule: restaurants.Schedule{
 				Open:  open,
 				Close: close,
 			},
-			DaysOpen:     []DayOfWeek{Monday, Saturday},
+			DaysOpen:     []restaurants.DayOfWeek{restaurants.Monday, restaurants.Saturday},
 			Subscription: 3,
 		},
-		TableList: &TableList{
-			Items: []Table{
-				{ID: "table-1", State: TableStateAvailable},
-				{ID: "table-2", State: TableStateReserved},
-				{ID: "table-3", State: TableStateCleaning},
+		TableList: &tables.TableList{
+			Items: []tables.Table{
+				{ID: "table-1", State: tables.TableStateAvailable},
+				{ID: "table-2", State: tables.TableStateReserved},
+				{ID: "table-3", State: tables.TableStateCleaning},
 			},
 		},
-		Table: &Table{ID: "table-2", State: TableStateReserved, Number: 12, Capacity: 4},
-		ReservationList: &ReservationList{
-			Items: []Reservation{
-				{ID: "res-1", Status: ReservationStatusPending},
-				{ID: "res-2", Status: ReservationStatusConfirmed},
-				{ID: "res-3", Status: ReservationStatusCancelled},
-				{ID: "res-4", Status: ReservationStatusNoShow},
+		Table: &tables.Table{ID: "table-2", State: tables.TableStateReserved, Number: 12, Capacity: 4},
+		ReservationList: &reservations.ReservationList{
+			Items: []reservations.Reservation{
+				{ID: "res-1", Status: reservations.ReservationStatusPending},
+				{ID: "res-2", Status: reservations.ReservationStatusConfirmed},
+				{ID: "res-3", Status: reservations.ReservationStatusCancelled},
+				{ID: "res-4", Status: reservations.ReservationStatusNoShow},
 			},
 		},
-		Reservation: &Reservation{
+		Reservation: &reservations.Reservation{
 			ID:              "res-2",
 			TableID:         "table-2",
-			Status:          ReservationStatusConfirmed,
+			Status:          reservations.ReservationStatusConfirmed,
 			Guests:          5,
 			ReservationDate: "2025-10-20",
 			ReservationTime: "20:30",
@@ -147,8 +151,8 @@ func TestBuildDetailMessageIncludesDaysOpenMetadata(t *testing.T) {
 func TestBuildListMessageIncludesCounts(t *testing.T) {
 	snapshot := &SectionSnapshot{
 		Payload: map[string]any{"items": []any{"a", "b"}},
-		RestaurantList: &RestaurantList{
-			Items: []Restaurant{{ID: "1"}, {ID: "2"}},
+		RestaurantList: &restaurants.RestaurantList{
+			Items: []restaurants.Restaurant{{ID: "1"}, {ID: "2"}},
 			Total: 10,
 		},
 	}
