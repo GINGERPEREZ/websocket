@@ -364,25 +364,26 @@ subscribe a `h.Topic()` con `h.Handle`.
 
 ## Ejemplo completo: WebSockets en tiempo real con Echo + Gorilla WebSocket
 
-Este ejemplo demuestra cómo organizar un feature `realtime` que mantiene
-conexiones WebSocket, enruta mensajes por topic y se integra con la capa de
-aplicación (usecases). Está pensado para usar junto al REST existente (que ya
-publica eventos a Kafka): los usecases publican eventos a Kafka y el realtime
-service puede consumirlos o servir actualizaciones en vivo.
+Este ejemplo demuestra cómo organizar un feature `restaurants` dentro de
+`internal/modules/<bounded-context>` que mantiene conexiones WebSocket,
+enruta mensajes por topic y se integra con la capa de aplicación (usecases).
+Está pensado para convivir con el REST existente (que ya publica eventos a
+Kafka): los usecases publican y consumen eventos mientras el servicio realtime
+sirve actualizaciones en vivo a los clientes WebSocket.
 
 Estructura propuesta (solo archivos clave mostrados):
 
-internal/realtime/
+internal/modules/restaurants/
 ├── domain/
-│ └── message.go # tipos de mensaje y value objects
+│ └── message.go # tipos de mensaje y value objects usados por el módulo
 ├── application/
-│ ├── pubsub_port.go # TopicHandler interface
-│ └── broadcast_usecase.go # usecase para broadcasting
+│ ├── port/        # contratos hacia infraestructura externa
+│ └── usecase/     # casos de uso del módulo (con orchestration y cache)
 ├── infrastructure/
-│ ├── websocket_hub.go # Hub, client, topic routing
-│ └── registry.go # registro de TopicHandlers
-└── transport/
-└── http_handler.go # Echo handlers (upgrade WS)
+│ ├── websocket.hub.go # Hub, client, topic routing
+│ └── registry.go      # registro de TopicHandlers
+└── interface/
+  └── http.handler.go # Echo handlers (upgrade WS)
 
 En las siguientes secciones se muestra código ejemplo para cada pieza.
 
@@ -412,7 +413,7 @@ package application
 
 import (
   "context"
-  "github.com/your/module/internal/realtime/domain"
+  "github.com/your/module/internal/modules/restaurants/domain"
 )
 
 // TopicHandler es el contrato que implementan los handlers de tópicos.
@@ -441,7 +442,7 @@ import (
   "time"
 
   "github.com/gorilla/websocket"
-  "github.com/your/module/internal/realtime/domain"
+  "github.com/your/module/internal/modules/restaurants/domain"
 )
 
 type Client struct {
@@ -530,7 +531,7 @@ func (b *HubBroadcaster) Broadcast(ctx context.Context, msg *domain.Message) err
 ```go
 package infrastructure
 
-import "github.com/your/module/internal/realtime/application"
+import "github.com/your/module/internal/modules/restaurants/application"
 
 type Registry struct {
   handlers []application.TopicHandler
@@ -555,7 +556,7 @@ import (
 
   "github.com/labstack/echo/v4"
   "github.com/gorilla/websocket"
-  "github.com/your/module/internal/realtime/infrastructure"
+  "github.com/your/module/internal/modules/restaurants/infrastructure"
 )
 
 var upgrader = websocket.Upgrader{ CheckOrigin: func(r *http.Request) bool { return true } }
@@ -633,7 +634,7 @@ compensación/offsets.
 
 Si quieres, puedo ahora:
 
-- Generar el scaffold runnable completo para `internal/realtime` (archivos
+- Generar el scaffold runnable completo para `internal/modules/restaurants` (archivos
   mostrados) y actualizar `cmd/server/main.go` con el wiring mínimo.
 - Añadir tests unitarios para `Hub.Broadcast` y un test de integración
   ligero que abra una conexión WebSocket.

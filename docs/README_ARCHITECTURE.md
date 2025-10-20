@@ -90,4 +90,4 @@ Recomendaciones finales:
 
 ---
 
-Si quieres, puedo generar ahora el scaffold runnable completo en `internal/realtime` y actualizar `cmd/server/main.go` con wiring mínimo (creando los archivos mostrados y tests básicos). Dime y lo creo.
+Si quieres, puedo generar ahora el scaffold runnable completo en `internal/modules/restaurants` y actualizar `cmd/server/main.go` con wiring mínimo (creando los archivos mostrados y tests básicos). Dime y lo creo.

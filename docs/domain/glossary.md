@@ -39,11 +39,11 @@ This note captures the ubiquitous language we will lean on while refactoring the
 ## Entities & Value Objects
 
 - `RestaurantId`, `SectionId`, `TableId`, `ReservationId`, `ReviewId`, `UserId`: value objects wrapping UUIDs to avoid accidental mixups.
-- `Schedule`: value object encapsulating `openTime`/`closeTime` with validation that spans a single day. Enforced by `internal/realtime/domain/schedule.go`.
-- `DayOfWeek`: enumerates allowed opening days (`MONDAY`..`SUNDAY`) with normalization helpers in `internal/realtime/domain/day_of_week.go`.
-- `RestaurantStatus`: normalises `ACTIVE`/`INACTIVE` lifecycle flags from REST payloads (`internal/realtime/domain/restaurant_status.go`).
-- `TableState`: realtime availability flags for tables (`AVAILABLE`, `RESERVED`, `SEATED`, `BLOCKED`, `CLEANING`) defined in `internal/realtime/domain/table_state.go`.
-- `ReservationStatus`: booking lifecycle (`PENDING`, `CONFIRMED`, `SEATED`, `COMPLETED`, `CANCELLED`, `NO_SHOW`) defined in `internal/realtime/domain/reservation_status.go`.
+- `Schedule`: value object encapsulating `openTime`/`closeTime` with validation that spans a single day. Enforced by `internal/modules/restaurants/domain/schedule.go`.
+- `DayOfWeek`: enumerates allowed opening days (`MONDAY`..`SUNDAY`) with normalization helpers in `internal/modules/restaurants/domain/day_of_week.go`.
+- `RestaurantStatus`: normalises `ACTIVE`/`INACTIVE` lifecycle flags from REST payloads (`internal/modules/restaurants/domain/restaurant_status.go`).
+- `TableState`: realtime availability flags for tables (`AVAILABLE`, `RESERVED`, `SEATED`, `BLOCKED`, `CLEANING`) defined in `internal/modules/restaurants/domain/table_state.go`.
+- `ReservationStatus`: booking lifecycle (`PENDING`, `CONFIRMED`, `SEATED`, `COMPLETED`, `CANCELLED`, `NO_SHOW`) defined in `internal/modules/restaurants/domain/reservation_status.go`.
 - `PagedQuery`: value object standardising `page`, `limit`, `search`, `sortBy`, `sortOrder` (already partially encoded in `SectionListOptions`).
 - `GeoLocation`: free-form string today; candidate for future refinement.
 - `Capacity`: positive integer; potential reuse across restaurants and tables.
@@ -52,7 +52,7 @@ This note captures the ubiquitous language we will lean on while refactoring the
 
 - **SnapshotService** (current `SectionSnapshotFetcher`): translates REST responses into domain aggregates for realtime consumption; today it returns raw maps—we will upgrade it to emit typed entities.
 - **BroadcastService**: wraps Kafka/WebSocket broadcasting so use cases only emit domain messages.
-- **SectionMessageFactory**: `internal/realtime/domain/section_messages.go` derives list/detail metadata from typed projections to keep message assembly DRY.
+- **SectionMessageFactory**: `internal/modules/restaurants/domain/section_messages.go` derives list/detail metadata from typed projections to keep message assembly DRY.
 
 ## Context Map
 
