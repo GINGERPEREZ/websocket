@@ -29,7 +29,7 @@ type ServerConfig struct {
 type KafkaConfig struct {
 	Brokers []string
 	GroupID string
-	Topics  map[string]string
+	Topics  map[string][]string
 }
 
 type SecurityConfig struct {
@@ -78,13 +78,13 @@ func Load() (Config, error) {
 	}
 
 	if len(cfg.Kafka.Topics) == 0 {
-		cfg.Kafka.Topics = map[string]string{
-			"users":       "users.events",
-			"restaurants": "restaurants.events",
-			"orders":      "orders.events",
-			"bookings":    "bookings.events",
-			"sections":    "sections.events",
-			"reviews":     "reviews.events",
+		cfg.Kafka.Topics = map[string][]string{
+			"users":       {"users.events"},
+			"restaurants": {"restaurants.events"},
+			"orders":      {"orders.events"},
+			"bookings":    {"bookings.events"},
+			"sections":    {"sections.events"},
+			"reviews":     {"reviews.events"},
 		}
 	}
 
@@ -149,23 +149,34 @@ func trimQuotes(raw string) string {
 	return trimmed
 }
 
-func parseTopics(raw string) map[string]string {
+func parseTopics(raw string) map[string][]string {
 	entries := splitEnv(raw)
 	if len(entries) == 0 {
 		return nil
 	}
-	result := make(map[string]string, len(entries))
+	result := make(map[string][]string)
 	for _, entry := range entries {
 		parts := strings.SplitN(entry, ":", 2)
 		if len(parts) != 2 {
 			continue
 		}
 		entity := strings.TrimSpace(parts[0])
-		topic := strings.TrimSpace(parts[1])
-		if entity == "" || topic == "" {
+		if entity == "" {
 			continue
 		}
-		result[entity] = topic
+		topicPart := strings.TrimSpace(parts[1])
+		if topicPart == "" {
+			continue
+		}
+		topics := strings.Split(topicPart, "|")
+		for _, topic := range topics {
+			if trimmed := strings.TrimSpace(topic); trimmed != "" {
+				result[entity] = append(result[entity], trimmed)
+			}
+		}
+	}
+	if len(result) == 0 {
+		return nil
 	}
 	return result
 }

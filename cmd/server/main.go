@@ -67,17 +67,19 @@ func main() {
 
 	// Registrar handlers de tópicos (cada feature)
 	registry.Register(&handler.UserCreatedHandler{UseCase: broadcastUC})
-	for entity, topic := range cfg.Kafka.Topics {
-		registry.Register(handler.NewEntityStreamHandler(entity, topic, cfg.Websocket.AllowedActions, broadcastUC, connectUC))
+	for entity, topics := range cfg.Kafka.Topics {
+		for _, topic := range topics {
+			registry.Register(handler.NewEntityStreamHandler(entity, topic, cfg.Websocket.AllowedActions, broadcastUC, connectUC))
+		}
 	}
 
 	// Iniciar Kafka consumers (registrar topics desde config)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	// gather topics from config
-	topics := make([]string, 0, len(cfg.Kafka.Topics))
-	for _, t := range cfg.Kafka.Topics {
-		topics = append(topics, t)
+	topics := make([]string, 0)
+	for _, topicList := range cfg.Kafka.Topics {
+		topics = append(topics, topicList...)
 	}
 	broker.StartKafkaConsumers(ctx, registry, cfg.Kafka.Brokers, cfg.Kafka.GroupID, topics)
 

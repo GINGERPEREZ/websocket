@@ -63,8 +63,9 @@ func decodeMessage(m kafka.Message) *domain.Message {
 	var event rawEvent
 	if err := json.Unmarshal(m.Value, &event); err != nil {
 		msg.Topic = m.Topic
-		msg.Entity = normalizeTopic(m.Topic)
-		msg.Action = "raw"
+		entity, action := inferEntityActionFromTopic(m.Topic)
+		msg.Entity = entity
+		msg.Action = action
 		msg.Data = string(m.Value)
 		return msg
 	}
@@ -82,6 +83,21 @@ func decodeMessage(m kafka.Message) *domain.Message {
 	}
 
 	return msg
+}
+
+func inferEntityActionFromTopic(topic string) (string, string) {
+	parts := strings.Split(topic, ".")
+	if len(parts) >= 2 {
+		entity := strings.TrimSpace(parts[len(parts)-2])
+		action := strings.TrimSpace(parts[len(parts)-1])
+		if entity != "" && action != "" {
+			return entity, action
+		}
+	}
+	if entity := normalizeTopic(topic); entity != "" {
+		return entity, "unknown"
+	}
+	return "", "unknown"
 }
 
 func firstNonEmpty(values ...string) string {
