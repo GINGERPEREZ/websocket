@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"mesaYaWs/internal/realtime/application/port"
-	"mesaYaWs/internal/realtime/domain"
+	"mesaYaWs/internal/modules/realtime/application/port"
+	"mesaYaWs/internal/modules/realtime/domain"
 	"mesaYaWs/internal/shared/auth"
 )
 

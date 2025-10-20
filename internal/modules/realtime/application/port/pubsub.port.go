@@ -3,7 +3,7 @@ package port
 import (
 	"context"
 
-	"mesaYaWs/internal/realtime/domain"
+	"mesaYaWs/internal/modules/realtime/domain"
 )
 
 // PubSubPort define el contrato para consumir eventos externos (Kafka).

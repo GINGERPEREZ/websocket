@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"mesaYaWs/internal/realtime/domain"
+	"mesaYaWs/internal/modules/realtime/domain"
 )
 
 var (

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"mesaYaWs/internal/realtime/application/port"
-	"mesaYaWs/internal/realtime/domain"
+	"mesaYaWs/internal/modules/realtime/application/port"
+	"mesaYaWs/internal/modules/realtime/domain"
 )
 
 // SectionSnapshotHTTPClient implements SectionSnapshotFetcher using the REST API described in swagger.json.

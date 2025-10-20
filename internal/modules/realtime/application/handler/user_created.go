@@ -3,9 +3,9 @@ package handler
 import (
 	"context"
 
-	"mesaYaWs/internal/realtime/application/port"
-	"mesaYaWs/internal/realtime/application/usecase"
-	"mesaYaWs/internal/realtime/domain"
+	"mesaYaWs/internal/modules/realtime/application/port"
+	"mesaYaWs/internal/modules/realtime/application/usecase"
+	"mesaYaWs/internal/modules/realtime/domain"
 )
 
 // UserCreatedHandler maneja eventos user.created y delega al usecase de broadcast.

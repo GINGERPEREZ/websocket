@@ -2,8 +2,8 @@ package usecase
 
 import (
 	"context"
-	"mesaYaWs/internal/realtime/application/port"
-	"mesaYaWs/internal/realtime/domain"
+	"mesaYaWs/internal/modules/realtime/application/port"
+	"mesaYaWs/internal/modules/realtime/domain"
 )
 
 type BroadcastUseCase struct {

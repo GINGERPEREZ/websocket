@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"strings"
 
-	"mesaYaWs/internal/realtime/application/port"
-	"mesaYaWs/internal/realtime/application/usecase"
-	"mesaYaWs/internal/realtime/domain"
+	"mesaYaWs/internal/modules/realtime/application/port"
+	"mesaYaWs/internal/modules/realtime/application/usecase"
+	"mesaYaWs/internal/modules/realtime/domain"
 )
 
 // EntityStreamHandler reenvía eventos de un tópico Kafka asociado a una entidad a los clientes WebSocket.
