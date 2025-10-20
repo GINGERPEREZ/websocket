@@ -377,13 +377,13 @@ internal/modules/restaurants/
 ├── domain/
 │ └── message.go # tipos de mensaje y value objects usados por el módulo
 ├── application/
-│ ├── port/        # contratos hacia infraestructura externa
-│ └── usecase/     # casos de uso del módulo (con orchestration y cache)
+│ ├── port/ # contratos hacia infraestructura externa
+│ └── usecase/ # casos de uso del módulo (con orchestration y cache)
 ├── infrastructure/
 │ ├── websocket.hub.go # Hub, client, topic routing
-│ └── registry.go      # registro de TopicHandlers
+│ └── registry.go # registro de TopicHandlers
 └── interface/
-  └── http.handler.go # Echo handlers (upgrade WS)
+└── http.handler.go # Echo handlers (upgrade WS)
 
 En las siguientes secciones se muestra código ejemplo para cada pieza.
 
