@@ -9,14 +9,15 @@ import (
 	"strings"
 	"time"
 
-	"mesaYaWs/internal/modules/restaurants/application/port"
-	"mesaYaWs/internal/modules/restaurants/application/usecase"
-	"mesaYaWs/internal/modules/restaurants/domain"
-	"mesaYaWs/internal/modules/restaurants/infrastructure"
-	"mesaYaWs/internal/shared/auth"
-
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
+
+	"mesaYaWs/internal/modules/realtime/application/port"
+	"mesaYaWs/internal/modules/realtime/application/usecase"
+	"mesaYaWs/internal/modules/realtime/infrastructure"
+	domain "mesaYaWs/internal/modules/realtime/domain"
+	restaurants "mesaYaWs/internal/modules/restaurants/domain"
+	"mesaYaWs/internal/shared/auth"
 )
 
 var upgrader = websocket.Upgrader{
@@ -124,7 +125,7 @@ func NewWebsocketHandler(
 			action := strings.ToLower(strings.TrimSpace(cmd.Action))
 			switch action {
 			case "list_restaurants", "fetch_all", "list":
-				var payload domain.ListRestaurantsCommand
+				var payload restaurants.ListRestaurantsCommand
 				if len(cmd.Payload) > 0 {
 					if err := json.Unmarshal(cmd.Payload, &payload); err != nil {
 						slog.Warn("ws handler list payload decode failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
@@ -140,7 +141,7 @@ func NewWebsocketHandler(
 				}
 				client.SendDomainMessage(message)
 			case "get_restaurant", "fetch_one", "detail":
-				var payload domain.GetRestaurantCommand
+				var payload restaurants.GetRestaurantCommand
 				if err := json.Unmarshal(cmd.Payload, &payload); err != nil || strings.TrimSpace(payload.ID) == "" {
 					slog.Warn("ws handler detail payload decode failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
 					sendCommandError(client, entity, section, "detail", "invalid payload")

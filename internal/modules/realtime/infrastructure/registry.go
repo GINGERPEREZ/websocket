@@ -2,8 +2,9 @@ package infrastructure
 
 import (
 	"context"
-	"mesaYaWs/internal/modules/restaurants/application/port"
-	"mesaYaWs/internal/modules/restaurants/domain"
+
+	"mesaYaWs/internal/modules/realtime/application/port"
+	"mesaYaWs/internal/modules/realtime/domain"
 )
 
 type HandlerRegistry struct {

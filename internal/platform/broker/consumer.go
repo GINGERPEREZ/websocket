@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
-	"mesaYaWs/internal/modules/restaurants/domain"
 	"strings"
 	"time"
 
 	"github.com/segmentio/kafka-go"
+
+	"mesaYaWs/internal/modules/realtime/domain"
 )
 
 type KafkaConsumer struct {

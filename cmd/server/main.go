@@ -7,14 +7,6 @@ import (
 	"io"
 	"log"
 	"log/slog"
-	"mesaYaWs/internal/config"
-	handler "mesaYaWs/internal/modules/restaurants/application/handler"
-	usecase "mesaYaWs/internal/modules/restaurants/application/usecase"
-	"mesaYaWs/internal/modules/restaurants/infrastructure"
-	transport "mesaYaWs/internal/modules/restaurants/interface"
-	"mesaYaWs/internal/platform/broker"
-	"mesaYaWs/internal/shared/auth"
-	"mesaYaWs/internal/shared/logging"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -23,6 +15,15 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
+
+	"mesaYaWs/internal/config"
+	handler "mesaYaWs/internal/modules/realtime/application/handler"
+	usecase "mesaYaWs/internal/modules/realtime/application/usecase"
+	"mesaYaWs/internal/modules/realtime/infrastructure"
+	transport "mesaYaWs/internal/modules/realtime/interface"
+	"mesaYaWs/internal/platform/broker"
+	"mesaYaWs/internal/shared/auth"
+	"mesaYaWs/internal/shared/logging"
 )
 
 func main() {
