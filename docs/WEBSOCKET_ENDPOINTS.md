@@ -4,12 +4,12 @@ The realtime gateway exposes a single websocket entry point per entity. Every ro
 
 ## Routes
 
-| Path | Description |
-| --- | --- |
-| `/ws/:entity/:section/:token` | Primary route. Connects to the given `section` for the provided `entity`. |
-| `/ws/:entity/:section` | Same as above but expects the token via `?token=` or an `Authorization: Bearer` header. |
-| `/ws/restaurant/:section/:token` | Legacy alias that maps to the `restaurants` entity. |
-| `/ws/restaurant/:section` | Legacy alias with token fallback. |
+| Path                             | Description                                                                             |
+| -------------------------------- | --------------------------------------------------------------------------------------- |
+| `/ws/:entity/:section/:token`    | Primary route. Connects to the given `section` for the provided `entity`.               |
+| `/ws/:entity/:section`           | Same as above but expects the token via `?token=` or an `Authorization: Bearer` header. |
+| `/ws/restaurant/:section/:token` | Legacy alias that maps to the `restaurants` entity.                                     |
+| `/ws/restaurant/:section`        | Legacy alias with token fallback.                                                       |
 
 `entity` is case insensitive. Known values:
 
