@@ -1,23 +1,23 @@
 package port
 
 import (
-    "context"
+	"context"
 
-    "mesaYaWs/internal/modules/realtime/domain"
+	"mesaYaWs/internal/modules/realtime/domain"
 )
 
 // PubSubPort define el contrato para consumir eventos externos (Kafka).
 type PubSubPort interface {
-    Consume(ctx context.Context, topic string, handler func(*domain.Message) error) error
+	Consume(ctx context.Context, topic string, handler func(*domain.Message) error) error
 }
 
 // Broadcaster define el contrato para enviar mensajes a los clientes WebSocket.
 type Broadcaster interface {
-    Broadcast(ctx context.Context, msg *domain.Message)
+	Broadcast(ctx context.Context, msg *domain.Message)
 }
 
-// TopicHandler define la interfaz que deben implementar los handlers registrados por tópico.
+// TopicHandler define la interfaz que deben implementar los handlers registrados por tÃ³pico.
 type TopicHandler interface {
-    Topic() string
-    Handle(ctx context.Context, msg *domain.Message) error
+	Topic() string
+	Handle(ctx context.Context, msg *domain.Message) error
 }
