@@ -1,4 +1,4 @@
-package handler
+ï»¿package handler
 
 import (
     "context"
@@ -10,7 +10,7 @@ import (
     "mesaYaWs/internal/modules/realtime/domain"
 )
 
-// EntityStreamHandler reenvía eventos de un tópico Kafka asociado a una entidad a los clientes WebSocket.
+// EntityStreamHandler reenvÃ­a eventos de un tÃ³pico Kafka asociado a una entidad a los clientes WebSocket.
 // Permite filtrar acciones permitidas para evitar ruido innecesario.
 type EntityStreamHandler struct {
     entity         string
@@ -80,3 +80,4 @@ func (h *EntityStreamHandler) refreshSnapshot(ctx context.Context, msg *domain.M
 }
 
 var _ port.TopicHandler = (*EntityStreamHandler)(nil)
+

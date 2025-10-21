@@ -1,4 +1,4 @@
-package handler
+﻿package handler
 
 import (
     "context"
@@ -21,3 +21,4 @@ func (h *UserCreatedHandler) Handle(ctx context.Context, msg *domain.Message) er
 }
 
 var _ port.TopicHandler = (*UserCreatedHandler)(nil)
+

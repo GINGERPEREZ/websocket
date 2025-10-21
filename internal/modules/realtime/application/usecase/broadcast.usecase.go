@@ -1,4 +1,4 @@
-package usecase
+﻿package usecase
 
 import (
     "context"
@@ -18,3 +18,4 @@ func NewBroadcastUseCase(b port.Broadcaster) *BroadcastUseCase {
 func (uc *BroadcastUseCase) Execute(ctx context.Context, msg *domain.Message) {
     uc.broadcaster.Broadcast(ctx, msg)
 }
+
