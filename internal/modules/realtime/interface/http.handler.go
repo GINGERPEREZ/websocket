@@ -14,8 +14,8 @@ import (
 
 	"mesaYaWs/internal/modules/realtime/application/port"
 	"mesaYaWs/internal/modules/realtime/application/usecase"
-	"mesaYaWs/internal/modules/realtime/infrastructure"
 	domain "mesaYaWs/internal/modules/realtime/domain"
+	"mesaYaWs/internal/modules/realtime/infrastructure"
 	restaurants "mesaYaWs/internal/modules/restaurants/domain"
 	"mesaYaWs/internal/shared/auth"
 )
