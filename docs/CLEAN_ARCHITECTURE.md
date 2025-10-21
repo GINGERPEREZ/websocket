@@ -371,6 +371,8 @@ Está pensado para convivir con el REST existente (que ya publica eventos a
 Kafka): los usecases publican y consumen eventos mientras el servicio realtime
 sirve actualizaciones en vivo a los clientes WebSocket.
 
+> Consulta `docs/WEBSOCKET_ENDPOINTS.md` para detalles actualizados de rutas, comandos disponibles y pasos para extender nuevos módulos en el gateway WebSocket.
+
 Estructura propuesta (solo archivos clave mostrados):
 
 internal/modules/restaurants/

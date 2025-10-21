@@ -16,7 +16,9 @@ import (
 	"mesaYaWs/internal/modules/realtime/application/usecase"
 	domain "mesaYaWs/internal/modules/realtime/domain"
 	"mesaYaWs/internal/modules/realtime/infrastructure"
+	reservations "mesaYaWs/internal/modules/reservations/domain"
 	restaurants "mesaYaWs/internal/modules/restaurants/domain"
+	tables "mesaYaWs/internal/modules/tables/domain"
 	"mesaYaWs/internal/shared/auth"
 )
 
@@ -24,25 +26,27 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-// NewWebsocketHandler crea un handler que expone la ruta /ws/restaurant/:section/:token
-// donde :section es el namespace/section y :token es el JWT emitido por el servicio Nest.
-// Valida el JWT localmente con el validador proporcionado, registra al cliente en el hub y
-// responde con un evento system.connected.
+// NewWebsocketHandler expone /ws/:entity/:section/:token y valida el JWT localmente.
 func NewWebsocketHandler(
 	hub *infrastructure.Hub,
 	connectUC *usecase.ConnectSectionUseCase,
-	entity string,
+	defaultEntity string,
 	allowedActions []string,
 ) func(echo.Context) error {
-	entity = strings.TrimSpace(entity)
-	if entity == "" {
-		entity = "restaurants"
+	defaultEntity = normalizeEntity(defaultEntity)
+	if defaultEntity == "" {
+		defaultEntity = "restaurants"
 	}
 	if len(allowedActions) == 0 {
 		allowedActions = []string{"created", "updated", "deleted", "snapshot"}
 	}
 
 	return func(c echo.Context) error {
+		entityParam := c.Param("entity")
+		entity := normalizeEntity(entityParam)
+		if entity == "" {
+			entity = defaultEntity
+		}
 		section := strings.TrimSpace(c.Param("section"))
 		token := strings.TrimSpace(c.Param("token"))
 		queryParams := c.QueryParams()
@@ -62,6 +66,19 @@ func NewWebsocketHandler(
 		logger := c.Logger()
 		requestID := c.Response().Header().Get(echo.HeaderXRequestID)
 		peerIP := c.RealIP()
+
+		if entity == "" {
+			slog.Warn("ws handler missing entity", slog.String("sectionId", section))
+			logger.Warnf("ws rejected: missing entity section=%s ip=%s reqID=%s", section, peerIP, requestID)
+			return echo.NewHTTPError(http.StatusBadRequest, "missing entity")
+		}
+
+		factory, supported := entityHandlers[entity]
+		if !supported {
+			slog.Warn("ws handler entity not integrated", slog.String("entity", entity), slog.String("sectionId", section))
+			logger.Warnf("ws rejected: entity not integrated entity=%s section=%s ip=%s reqID=%s", entity, section, peerIP, requestID)
+			return echo.NewHTTPError(http.StatusNotFound, "entity "+entity+" is not integrated")
+		}
 
 		if section == "" {
 			slog.Warn("ws handler missing section", slog.String("entity", entity), slog.Int("tokenLen", len(token)))
@@ -121,44 +138,7 @@ func NewWebsocketHandler(
 		roles := claims.Roles
 		slog.Info("ws handler upgrade success", slog.String("entity", entity), slog.String("sectionId", section), slog.String("userId", userID), slog.String("sessionId", sessionID), slog.Any("roles", roles))
 
-		commandHandler := func(cmdCtx context.Context, client *infrastructure.Client, cmd infrastructure.Command) {
-			action := strings.ToLower(strings.TrimSpace(cmd.Action))
-			switch action {
-			case "list_restaurants", "fetch_all", "list":
-				var payload restaurants.ListRestaurantsCommand
-				if len(cmd.Payload) > 0 {
-					if err := json.Unmarshal(cmd.Payload, &payload); err != nil {
-						slog.Warn("ws handler list payload decode failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
-						sendCommandError(client, entity, section, "list", "invalid payload")
-						return
-					}
-				}
-				message, err := connectUC.HandleListRestaurantsCommand(cmdCtx, token, section, payload, entity)
-				if err != nil {
-					slog.Warn("ws handler list fetch failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
-					sendCommandError(client, entity, section, "list", err.Error())
-					return
-				}
-				client.SendDomainMessage(message)
-			case "get_restaurant", "fetch_one", "detail":
-				var payload restaurants.GetRestaurantCommand
-				if err := json.Unmarshal(cmd.Payload, &payload); err != nil || strings.TrimSpace(payload.ID) == "" {
-					slog.Warn("ws handler detail payload decode failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
-					sendCommandError(client, entity, section, "detail", "invalid payload")
-					return
-				}
-				message, err := connectUC.HandleGetRestaurantCommand(cmdCtx, token, section, payload, entity)
-				if err != nil {
-					slog.Warn("ws handler detail fetch failed", slog.String("entity", entity), slog.String("sectionId", section), slog.String("restaurantId", payload.ID), slog.Any("error", err))
-					sendCommandError(client, entity, section, "detail", err.Error())
-					return
-				}
-				client.SendDomainMessage(message)
-			default:
-				slog.Debug("ws handler unknown action", slog.String("entity", entity), slog.String("sectionId", section), slog.String("action", cmd.Action))
-				sendCommandError(client, entity, section, "unknown", "unsupported action")
-			}
-		}
+		commandHandler := factory(entity, section, token, connectUC)
 
 		client := infrastructure.NewClient(hub, conn, userID, sessionID, section, entity, token, 8, commandHandler)
 
@@ -196,6 +176,7 @@ func NewWebsocketHandler(
 }
 
 func buildTopics(entity string, allowedActions []string) []string {
+	entity = strings.TrimSpace(entity)
 	topics := []string{entity + ".snapshot", entity + ".list", entity + ".detail", entity + ".error"}
 	seen := map[string]struct{}{
 		topics[0]: {},
@@ -238,4 +219,151 @@ func sendCommandError(client *infrastructure.Client, entity, section, action, re
 		Timestamp: time.Now().UTC(),
 	}
 	client.SendDomainMessage(message)
+}
+
+type commandHandlerFactory func(entity, section, token string, connectUC *usecase.ConnectSectionUseCase) func(context.Context, *infrastructure.Client, infrastructure.Command)
+
+var entityHandlers = map[string]commandHandlerFactory{
+	"restaurants":  newRestaurantCommandHandler,
+	"tables":       newTableCommandHandler,
+	"reservations": newReservationCommandHandler,
+}
+
+func newRestaurantCommandHandler(entity, section, token string, connectUC *usecase.ConnectSectionUseCase) func(context.Context, *infrastructure.Client, infrastructure.Command) {
+	return func(cmdCtx context.Context, client *infrastructure.Client, cmd infrastructure.Command) {
+		action := strings.ToLower(strings.TrimSpace(cmd.Action))
+		switch action {
+		case "list_restaurants", "fetch_all", "list":
+			var payload restaurants.ListRestaurantsCommand
+			if len(cmd.Payload) > 0 {
+				if err := json.Unmarshal(cmd.Payload, &payload); err != nil {
+					slog.Warn("ws handler restaurant list decode failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
+					sendCommandError(client, entity, section, "list", "invalid payload")
+					return
+				}
+			}
+			message, err := connectUC.HandleListRestaurantsCommand(cmdCtx, token, section, payload, entity)
+			if err != nil {
+				slog.Warn("ws handler restaurant list failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
+				sendCommandError(client, entity, section, "list", err.Error())
+				return
+			}
+			client.SendDomainMessage(message)
+		case "get_restaurant", "fetch_one", "detail":
+			var payload restaurants.GetRestaurantCommand
+			if err := json.Unmarshal(cmd.Payload, &payload); err != nil || strings.TrimSpace(payload.ID) == "" {
+				slog.Warn("ws handler restaurant detail decode failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
+				sendCommandError(client, entity, section, "detail", "invalid payload")
+				return
+			}
+			message, err := connectUC.HandleGetRestaurantCommand(cmdCtx, token, section, payload, entity)
+			if err != nil {
+				slog.Warn("ws handler restaurant detail failed", slog.String("entity", entity), slog.String("sectionId", section), slog.String("resourceId", payload.ID), slog.Any("error", err))
+				sendCommandError(client, entity, section, "detail", err.Error())
+				return
+			}
+			client.SendDomainMessage(message)
+		default:
+			slog.Debug("ws handler restaurant unknown action", slog.String("entity", entity), slog.String("sectionId", section), slog.String("action", cmd.Action))
+			sendCommandError(client, entity, section, "unknown", "unsupported action")
+		}
+	}
+}
+
+func newTableCommandHandler(entity, section, token string, connectUC *usecase.ConnectSectionUseCase) func(context.Context, *infrastructure.Client, infrastructure.Command) {
+	return func(cmdCtx context.Context, client *infrastructure.Client, cmd infrastructure.Command) {
+		action := strings.ToLower(strings.TrimSpace(cmd.Action))
+		switch action {
+		case "list_tables", "list", "fetch_all":
+			var payload tables.ListTablesCommand
+			if len(cmd.Payload) > 0 {
+				if err := json.Unmarshal(cmd.Payload, &payload); err != nil {
+					slog.Warn("ws handler table list decode failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
+					sendCommandError(client, entity, section, "list", "invalid payload")
+					return
+				}
+			}
+			message, err := connectUC.HandleListTablesCommand(cmdCtx, token, section, payload, entity)
+			if err != nil {
+				slog.Warn("ws handler table list failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
+				sendCommandError(client, entity, section, "list", err.Error())
+				return
+			}
+			client.SendDomainMessage(message)
+		case "get_table", "detail", "fetch_one":
+			var payload tables.GetTableCommand
+			if err := json.Unmarshal(cmd.Payload, &payload); err != nil || strings.TrimSpace(payload.ID) == "" {
+				slog.Warn("ws handler table detail decode failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
+				sendCommandError(client, entity, section, "detail", "invalid payload")
+				return
+			}
+			message, err := connectUC.HandleGetTableCommand(cmdCtx, token, section, payload, entity)
+			if err != nil {
+				slog.Warn("ws handler table detail failed", slog.String("entity", entity), slog.String("sectionId", section), slog.String("resourceId", payload.ID), slog.Any("error", err))
+				sendCommandError(client, entity, section, "detail", err.Error())
+				return
+			}
+			client.SendDomainMessage(message)
+		default:
+			slog.Debug("ws handler table unknown action", slog.String("entity", entity), slog.String("sectionId", section), slog.String("action", cmd.Action))
+			sendCommandError(client, entity, section, "unknown", "unsupported action")
+		}
+	}
+}
+
+func newReservationCommandHandler(entity, section, token string, connectUC *usecase.ConnectSectionUseCase) func(context.Context, *infrastructure.Client, infrastructure.Command) {
+	return func(cmdCtx context.Context, client *infrastructure.Client, cmd infrastructure.Command) {
+		action := strings.ToLower(strings.TrimSpace(cmd.Action))
+		switch action {
+		case "list_reservations", "list", "fetch_all":
+			var payload reservations.ListReservationsCommand
+			if len(cmd.Payload) > 0 {
+				if err := json.Unmarshal(cmd.Payload, &payload); err != nil {
+					slog.Warn("ws handler reservation list decode failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
+					sendCommandError(client, entity, section, "list", "invalid payload")
+					return
+				}
+			}
+			message, err := connectUC.HandleListReservationsCommand(cmdCtx, token, section, payload, entity)
+			if err != nil {
+				slog.Warn("ws handler reservation list failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
+				sendCommandError(client, entity, section, "list", err.Error())
+				return
+			}
+			client.SendDomainMessage(message)
+		case "get_reservation", "detail", "fetch_one":
+			var payload reservations.GetReservationCommand
+			if err := json.Unmarshal(cmd.Payload, &payload); err != nil || strings.TrimSpace(payload.ID) == "" {
+				slog.Warn("ws handler reservation detail decode failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
+				sendCommandError(client, entity, section, "detail", "invalid payload")
+				return
+			}
+			message, err := connectUC.HandleGetReservationCommand(cmdCtx, token, section, payload, entity)
+			if err != nil {
+				slog.Warn("ws handler reservation detail failed", slog.String("entity", entity), slog.String("sectionId", section), slog.String("resourceId", payload.ID), slog.Any("error", err))
+				sendCommandError(client, entity, section, "detail", err.Error())
+				return
+			}
+			client.SendDomainMessage(message)
+		default:
+			slog.Debug("ws handler reservation unknown action", slog.String("entity", entity), slog.String("sectionId", section), slog.String("action", cmd.Action))
+			sendCommandError(client, entity, section, "unknown", "unsupported action")
+		}
+	}
+}
+
+func normalizeEntity(raw string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(raw))
+	switch trimmed {
+	case "", "-":
+		return ""
+	case "restaurant", "restaurants":
+		return "restaurants"
+	case "table", "tables":
+		return "tables"
+	case "reservation", "reservations":
+		return "reservations"
+	default:
+		return trimmed
+	}
 }
