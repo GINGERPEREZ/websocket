@@ -232,84 +232,36 @@ func (uc *ConnectSectionUseCase) refreshItem(ctx context.Context, scope, section
 }
 
 func (uc *ConnectSectionUseCase) HandleListRestaurantsCommand(ctx context.Context, token, sectionID string, command restaurants.ListRestaurantsCommand, entity string) (*domain.Message, error) {
-	query := domain.PagedQuery{
-		Page:      command.Page,
-		Limit:     command.Limit,
-		Search:    command.Search,
-		SortBy:    command.SortBy,
-		SortOrder: command.SortOrder,
-	}
-	snapshot, normalized, err := uc.ListRestaurants(ctx, token, sectionID, query)
-	if err != nil {
-		return nil, err
-	}
-	message := domain.BuildListMessage(entity, sectionID, snapshot, normalized, time.Now().UTC())
-	if message == nil {
-		return nil, port.ErrSnapshotNotFound
-	}
-	return message, nil
+	return uc.handleListCommand(ctx, token, sectionID, entity, command.PagedQuery(), uc.ListRestaurants)
 }
 
 func (uc *ConnectSectionUseCase) HandleGetRestaurantCommand(ctx context.Context, token, sectionID string, command restaurants.GetRestaurantCommand, entity string) (*domain.Message, error) {
-	restaurantID := strings.TrimSpace(command.ID)
-	if restaurantID == "" {
-		return nil, port.ErrSnapshotNotFound
-	}
-	snapshot, err := uc.GetRestaurant(ctx, token, sectionID, restaurantID)
-	if err != nil {
-		return nil, err
-	}
-	message := domain.BuildDetailMessage(entity, sectionID, restaurantID, snapshot, time.Now().UTC())
-	if message == nil {
-		return nil, port.ErrSnapshotNotFound
-	}
-	return message, nil
+	return uc.handleDetailCommand(ctx, token, sectionID, entity, strings.TrimSpace(command.ID), uc.GetRestaurant)
 }
 
 func (uc *ConnectSectionUseCase) HandleListTablesCommand(ctx context.Context, token, sectionID string, command tables.ListTablesCommand, entity string) (*domain.Message, error) {
-	query := domain.PagedQuery{
-		Page:      command.Page,
-		Limit:     command.Limit,
-		Search:    command.Search,
-		SortBy:    command.SortBy,
-		SortOrder: command.SortOrder,
-	}
-	snapshot, normalized, err := uc.ListTables(ctx, token, sectionID, query)
-	if err != nil {
-		return nil, err
-	}
-	message := domain.BuildListMessage(entity, sectionID, snapshot, normalized, time.Now().UTC())
-	if message == nil {
-		return nil, port.ErrSnapshotNotFound
-	}
-	return message, nil
+	return uc.handleListCommand(ctx, token, sectionID, entity, command.PagedQuery(), uc.ListTables)
 }
 
 func (uc *ConnectSectionUseCase) HandleGetTableCommand(ctx context.Context, token, sectionID string, command tables.GetTableCommand, entity string) (*domain.Message, error) {
-	tableID := strings.TrimSpace(command.ID)
-	if tableID == "" {
-		return nil, port.ErrSnapshotNotFound
-	}
-	snapshot, err := uc.GetTable(ctx, token, sectionID, tableID)
-	if err != nil {
-		return nil, err
-	}
-	message := domain.BuildDetailMessage(entity, sectionID, tableID, snapshot, time.Now().UTC())
-	if message == nil {
-		return nil, port.ErrSnapshotNotFound
-	}
-	return message, nil
+	return uc.handleDetailCommand(ctx, token, sectionID, entity, strings.TrimSpace(command.ID), uc.GetTable)
 }
 
 func (uc *ConnectSectionUseCase) HandleListReservationsCommand(ctx context.Context, token, sectionID string, command reservations.ListReservationsCommand, entity string) (*domain.Message, error) {
-	query := domain.PagedQuery{
-		Page:      command.Page,
-		Limit:     command.Limit,
-		Search:    command.Search,
-		SortBy:    command.SortBy,
-		SortOrder: command.SortOrder,
-	}
-	snapshot, normalized, err := uc.ListReservations(ctx, token, sectionID, query)
+	return uc.handleListCommand(ctx, token, sectionID, entity, command.PagedQuery(), uc.ListReservations)
+}
+
+func (uc *ConnectSectionUseCase) HandleGetReservationCommand(ctx context.Context, token, sectionID string, command reservations.GetReservationCommand, entity string) (*domain.Message, error) {
+	return uc.handleDetailCommand(ctx, token, sectionID, entity, strings.TrimSpace(command.ID), uc.GetReservation)
+}
+
+func (uc *ConnectSectionUseCase) handleListCommand(
+	ctx context.Context,
+	token, sectionID, entity string,
+	query domain.PagedQuery,
+	fetchFn func(context.Context, string, string, domain.PagedQuery) (*domain.SectionSnapshot, domain.PagedQuery, error),
+) (*domain.Message, error) {
+	snapshot, normalized, err := fetchFn(ctx, token, sectionID, query)
 	if err != nil {
 		return nil, err
 	}
@@ -320,16 +272,19 @@ func (uc *ConnectSectionUseCase) HandleListReservationsCommand(ctx context.Conte
 	return message, nil
 }
 
-func (uc *ConnectSectionUseCase) HandleGetReservationCommand(ctx context.Context, token, sectionID string, command reservations.GetReservationCommand, entity string) (*domain.Message, error) {
-	reservationID := strings.TrimSpace(command.ID)
-	if reservationID == "" {
+func (uc *ConnectSectionUseCase) handleDetailCommand(
+	ctx context.Context,
+	token, sectionID, entity, resourceID string,
+	fetchFn func(context.Context, string, string, string) (*domain.SectionSnapshot, error),
+) (*domain.Message, error) {
+	if strings.TrimSpace(resourceID) == "" {
 		return nil, port.ErrSnapshotNotFound
 	}
-	snapshot, err := uc.GetReservation(ctx, token, sectionID, reservationID)
+	snapshot, err := fetchFn(ctx, token, sectionID, resourceID)
 	if err != nil {
 		return nil, err
 	}
-	message := domain.BuildDetailMessage(entity, sectionID, reservationID, snapshot, time.Now().UTC())
+	message := domain.BuildDetailMessage(entity, sectionID, resourceID, snapshot, time.Now().UTC())
 	if message == nil {
 		return nil, port.ErrSnapshotNotFound
 	}
