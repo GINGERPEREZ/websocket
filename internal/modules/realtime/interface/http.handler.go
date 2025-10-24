@@ -355,7 +355,7 @@ func newReservationCommandHandler(entity, section, token string, connectUC *usec
 func normalizeEntity(raw string) string {
 	trimmed := strings.ToLower(strings.TrimSpace(raw))
 	switch trimmed {
-	case "", "-":
+	case "", "-", "default", "section", "sections":
 		return ""
 	case "restaurant", "restaurants":
 		return "restaurants"

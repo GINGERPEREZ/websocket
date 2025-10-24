@@ -17,12 +17,22 @@ The realtime gateway exposes a single websocket entry point per entity. Every ro
 - `tables`
 - `reservations`
 
-Any other value must be integrated following the extension guide below.
+If the path segment resolves to `section`, `sections`, or `default`, the handler falls back to the configured default entity (`WEBSOCKET_DEFAULT_ENTITY`). Any other value must be integrated following the extension guide below.
 
 ## Connecting
 
 ```http
 GET /ws/tables/main-hall/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+### Header-only token (recommended)
+
+```http
+GET /ws/restaurants/main-hall HTTP/1.1
+Host: localhost:8080
+Upgrade: websocket
+Connection: Upgrade
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
 On a successful handshake the server emits a `system.connected` event containing the section, entity, and list of topics the client is subscribed to.
