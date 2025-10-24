@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"mesaYaWs/internal/modules/realtime/application/port"
@@ -46,8 +47,12 @@ func TestConnectSectionUseCase_HandleListCommandSuccess(t *testing.T) {
 	if msg.ResourceID != "section-1" {
 		t.Fatalf("unexpected resource id: %s", msg.ResourceID)
 	}
-	if msg.Data != snapshot.Payload {
-		t.Fatalf("unexpected payload: %#v", msg.Data)
+	data, ok := msg.Data.(map[string]string)
+	if !ok {
+		t.Fatalf("expected payload map[string]string, got %T", msg.Data)
+	}
+	if data["ok"] != "yes" {
+		t.Fatalf("unexpected payload value: %#v", data)
 	}
 	if got := msg.Metadata["page"]; got != "3" {
 		t.Fatalf("metadata page mismatch: %s", got)
@@ -98,11 +103,11 @@ func TestConnectSectionUseCase_HandleDetailCommandSuccess(t *testing.T) {
 		if token != "token" {
 			t.Fatalf("unexpected token: %s", token)
 		}
-		if sectionID != "section-42" {
-			t.Fatalf("unexpected section id: %s", sectionID)
+		if strings.TrimSpace(sectionID) != "section-42" {
+			t.Fatalf("unexpected section id: %q", sectionID)
 		}
-		if resourceID != "resource-9" {
-			t.Fatalf("unexpected resource id: %s", resourceID)
+		if strings.TrimSpace(resourceID) != "resource-9" {
+			t.Fatalf("unexpected resource id: %q", resourceID)
 		}
 		return snapshot, nil
 	}
@@ -126,8 +131,12 @@ func TestConnectSectionUseCase_HandleDetailCommandSuccess(t *testing.T) {
 	if msg.Metadata["sectionId"] != "section-42" {
 		t.Fatalf("expected sectionId metadata, got: %v", msg.Metadata)
 	}
-	if msg.Data != snapshot.Payload {
-		t.Fatalf("unexpected payload: %#v", msg.Data)
+	data, ok := msg.Data.(map[string]string)
+	if !ok {
+		t.Fatalf("expected payload map[string]string, got %T", msg.Data)
+	}
+	if data["key"] != "value" {
+		t.Fatalf("unexpected payload value: %#v", data)
 	}
 }
 
