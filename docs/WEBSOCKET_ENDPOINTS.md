@@ -2,6 +2,8 @@
 
 The realtime gateway exposes a single websocket entry point per entity. Every route requires a valid JWT issued by the auth service. Tokens can be provided as a route param, query string, or bearer header.
 
+> Para una descripción completa del flujo interno y pasos para agregar nuevas entidades, consulta `docs/REALTIME_WEBSOCKET_GUIDE.md`.
+
 ## Routes
 
 | Path                             | Description                                                                             |
