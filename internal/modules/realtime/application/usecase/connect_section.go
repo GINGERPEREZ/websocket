@@ -232,27 +232,27 @@ func (uc *ConnectSectionUseCase) refreshItem(ctx context.Context, scope, section
 }
 
 func (uc *ConnectSectionUseCase) HandleListRestaurantsCommand(ctx context.Context, token, sectionID string, command restaurants.ListRestaurantsCommand, entity string) (*domain.Message, error) {
-	return uc.handleListCommand(ctx, token, sectionID, entity, command.PagedQuery(), uc.ListRestaurants)
+	return uc.handleListCommand(ctx, token, sectionID, entity, newPagedQuery(command.Page, command.Limit, command.Search, command.SortBy, command.SortOrder), uc.ListRestaurants)
 }
 
 func (uc *ConnectSectionUseCase) HandleGetRestaurantCommand(ctx context.Context, token, sectionID string, command restaurants.GetRestaurantCommand, entity string) (*domain.Message, error) {
-	return uc.handleDetailCommand(ctx, token, sectionID, entity, strings.TrimSpace(command.ID), uc.GetRestaurant)
+	return uc.handleDetailCommand(ctx, token, sectionID, entity, command.ID, uc.GetRestaurant)
 }
 
 func (uc *ConnectSectionUseCase) HandleListTablesCommand(ctx context.Context, token, sectionID string, command tables.ListTablesCommand, entity string) (*domain.Message, error) {
-	return uc.handleListCommand(ctx, token, sectionID, entity, command.PagedQuery(), uc.ListTables)
+	return uc.handleListCommand(ctx, token, sectionID, entity, newPagedQuery(command.Page, command.Limit, command.Search, command.SortBy, command.SortOrder), uc.ListTables)
 }
 
 func (uc *ConnectSectionUseCase) HandleGetTableCommand(ctx context.Context, token, sectionID string, command tables.GetTableCommand, entity string) (*domain.Message, error) {
-	return uc.handleDetailCommand(ctx, token, sectionID, entity, strings.TrimSpace(command.ID), uc.GetTable)
+	return uc.handleDetailCommand(ctx, token, sectionID, entity, command.ID, uc.GetTable)
 }
 
 func (uc *ConnectSectionUseCase) HandleListReservationsCommand(ctx context.Context, token, sectionID string, command reservations.ListReservationsCommand, entity string) (*domain.Message, error) {
-	return uc.handleListCommand(ctx, token, sectionID, entity, command.PagedQuery(), uc.ListReservations)
+	return uc.handleListCommand(ctx, token, sectionID, entity, newPagedQuery(command.Page, command.Limit, command.Search, command.SortBy, command.SortOrder), uc.ListReservations)
 }
 
 func (uc *ConnectSectionUseCase) HandleGetReservationCommand(ctx context.Context, token, sectionID string, command reservations.GetReservationCommand, entity string) (*domain.Message, error) {
-	return uc.handleDetailCommand(ctx, token, sectionID, entity, strings.TrimSpace(command.ID), uc.GetReservation)
+	return uc.handleDetailCommand(ctx, token, sectionID, entity, command.ID, uc.GetReservation)
 }
 
 func (uc *ConnectSectionUseCase) handleListCommand(
@@ -289,4 +289,14 @@ func (uc *ConnectSectionUseCase) handleDetailCommand(
 		return nil, port.ErrSnapshotNotFound
 	}
 	return message, nil
+}
+
+func newPagedQuery(page, limit int, search, sortBy, sortOrder string) domain.PagedQuery {
+	return domain.PagedQuery{
+		Page:      page,
+		Limit:     limit,
+		Search:    search,
+		SortBy:    sortBy,
+		SortOrder: sortOrder,
+	}
 }
