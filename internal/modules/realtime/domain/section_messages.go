@@ -89,24 +89,24 @@ func detailResourceKey(entity string) string {
 	case "auth-users":
 		return "userId"
 	default:
-			return "restaurantId"
-		}
+		return "restaurantId"
 	}
+}
 
-	func mergeInto(target map[string]string, extras Metadata) map[string]string {
-		if len(extras) == 0 {
-			return target
-		}
-		if target == nil {
-			target = map[string]string{}
-		}
-		for key, value := range extras {
-			trimmedKey := strings.TrimSpace(key)
-			trimmedValue := strings.TrimSpace(value)
-			if trimmedKey == "" || trimmedValue == "" {
-				continue
-			}
-			target[trimmedKey] = trimmedValue
-		}
+func mergeInto(target map[string]string, extras Metadata) map[string]string {
+	if len(extras) == 0 {
 		return target
 	}
+	if target == nil {
+		target = map[string]string{}
+	}
+	for key, value := range extras {
+		trimmedKey := strings.TrimSpace(key)
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedKey == "" || trimmedValue == "" {
+			continue
+		}
+		target[trimmedKey] = trimmedValue
+	}
+	return target
+}
