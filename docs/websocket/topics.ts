@@ -57,7 +57,10 @@ export const WEBSOCKET_COMMANDS = {
   reservations: createEntityCommands("reservations", "reservation"),
   payments: createEntityCommands("payments", "payment"),
   subscriptions: createEntityCommands("subscriptions", "subscription"),
-  "subscription-plans": createEntityCommands("subscription_plans", "subscription_plan"),
+  "subscription-plans": createEntityCommands(
+    "subscription_plans",
+    "subscription_plan"
+  ),
   "auth-users": createEntityCommands("auth_users", "auth_user"),
 } as const;
 
