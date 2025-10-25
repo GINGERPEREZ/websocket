@@ -9,9 +9,6 @@ import (
 
 	"mesaYaWs/internal/modules/realtime/application/port"
 	"mesaYaWs/internal/modules/realtime/domain"
-	reservations "mesaYaWs/internal/modules/reservations/domain"
-	restaurants "mesaYaWs/internal/modules/restaurants/domain"
-	tables "mesaYaWs/internal/modules/tables/domain"
 	"mesaYaWs/internal/shared/auth"
 )
 
@@ -118,18 +115,6 @@ func (uc *ConnectSectionUseCase) listScope(ctx context.Context, scope, token, se
 	return snapshot, options, nil
 }
 
-func (uc *ConnectSectionUseCase) ListRestaurants(ctx context.Context, token, sectionID string, params domain.PagedQuery) (*domain.SectionSnapshot, domain.PagedQuery, error) {
-	return uc.listScope(ctx, "restaurants", token, sectionID, params)
-}
-
-func (uc *ConnectSectionUseCase) ListTables(ctx context.Context, token, sectionID string, params domain.PagedQuery) (*domain.SectionSnapshot, domain.PagedQuery, error) {
-	return uc.listScope(ctx, "tables", token, sectionID, params)
-}
-
-func (uc *ConnectSectionUseCase) ListReservations(ctx context.Context, token, sectionID string, params domain.PagedQuery) (*domain.SectionSnapshot, domain.PagedQuery, error) {
-	return uc.listScope(ctx, "reservations", token, sectionID, params)
-}
-
 func (uc *ConnectSectionUseCase) getScope(ctx context.Context, scope, token, sectionID, resourceID string, fetch func(context.Context, string, string) (*domain.SectionSnapshot, error)) (*domain.SectionSnapshot, error) {
 	resource := strings.TrimSpace(resourceID)
 	if resource == "" {
@@ -158,24 +143,6 @@ func (uc *ConnectSectionUseCase) getScope(ctx context.Context, scope, token, sec
 	}
 
 	return snapshot, nil
-}
-
-func (uc *ConnectSectionUseCase) GetRestaurant(ctx context.Context, token, sectionID, restaurantID string) (*domain.SectionSnapshot, error) {
-	return uc.getScope(ctx, "restaurants", token, sectionID, restaurantID, func(c context.Context, t, resource string) (*domain.SectionSnapshot, error) {
-		return uc.SnapshotFetcher.FetchRestaurant(c, t, resource)
-	})
-}
-
-func (uc *ConnectSectionUseCase) GetTable(ctx context.Context, token, sectionID, tableID string) (*domain.SectionSnapshot, error) {
-	return uc.getScope(ctx, "tables", token, sectionID, tableID, func(c context.Context, t, resource string) (*domain.SectionSnapshot, error) {
-		return uc.SnapshotFetcher.FetchTable(c, t, resource)
-	})
-}
-
-func (uc *ConnectSectionUseCase) GetReservation(ctx context.Context, token, sectionID, reservationID string) (*domain.SectionSnapshot, error) {
-	return uc.getScope(ctx, "reservations", token, sectionID, reservationID, func(c context.Context, t, resource string) (*domain.SectionSnapshot, error) {
-		return uc.SnapshotFetcher.FetchReservation(c, t, resource)
-	})
 }
 
 func (uc *ConnectSectionUseCase) refreshList(ctx context.Context, scope, sectionID string, entry *snapshotCacheEntry, broadcaster *BroadcastUseCase) {
@@ -236,49 +203,20 @@ func (uc *ConnectSectionUseCase) refreshItem(ctx context.Context, scope, section
 	slog.Info("connect-section refreshed detail broadcast", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("resourceId", entry.resourceID))
 }
 
-func (uc *ConnectSectionUseCase) HandleListRestaurantsCommand(ctx context.Context, token, sectionID string, command restaurants.ListRestaurantsCommand, entity string) (*domain.Message, error) {
-	return uc.handleListCommand(ctx, token, sectionID, entity, newPagedQuery(command.Page, command.Limit, command.Search, command.SortBy, command.SortOrder), uc.ListRestaurants)
-}
-
-func (uc *ConnectSectionUseCase) HandleGetRestaurantCommand(ctx context.Context, token, sectionID string, command restaurants.GetRestaurantCommand, entity string) (*domain.Message, error) {
-	return uc.handleDetailCommand(ctx, token, sectionID, entity, command.ID, uc.GetRestaurant)
-}
-
-func (uc *ConnectSectionUseCase) HandleListTablesCommand(ctx context.Context, token, sectionID string, command tables.ListTablesCommand, entity string) (*domain.Message, error) {
-	return uc.handleListCommand(ctx, token, sectionID, entity, newPagedQuery(command.Page, command.Limit, command.Search, command.SortBy, command.SortOrder), uc.ListTables)
-}
-
-func (uc *ConnectSectionUseCase) HandleGetTableCommand(ctx context.Context, token, sectionID string, command tables.GetTableCommand, entity string) (*domain.Message, error) {
-	return uc.handleDetailCommand(ctx, token, sectionID, entity, command.ID, uc.GetTable)
-}
-
-func (uc *ConnectSectionUseCase) HandleListReservationsCommand(ctx context.Context, token, sectionID string, command reservations.ListReservationsCommand, entity string) (*domain.Message, error) {
-	return uc.handleListCommand(ctx, token, sectionID, entity, newPagedQuery(command.Page, command.Limit, command.Search, command.SortBy, command.SortOrder), uc.ListReservations)
-}
-
-func (uc *ConnectSectionUseCase) HandleGetReservationCommand(ctx context.Context, token, sectionID string, command reservations.GetReservationCommand, entity string) (*domain.Message, error) {
-	return uc.handleDetailCommand(ctx, token, sectionID, entity, command.ID, uc.GetReservation)
-}
-
 func (uc *ConnectSectionUseCase) HandleListEntityCommand(ctx context.Context, token, sectionID string, command domain.ListEntityCommand, entity string) (*domain.Message, error) {
-	return uc.handleListCommand(ctx, token, sectionID, entity, newPagedQuery(command.Page, command.Limit, command.Search, command.SortBy, command.SortOrder), func(c context.Context, t, s string, q domain.PagedQuery) (*domain.SectionSnapshot, domain.PagedQuery, error) {
-		return uc.listScope(c, entity, t, s, q)
-	})
+	return uc.handleListCommand(ctx, token, sectionID, entity, newPagedQuery(command.Page, command.Limit, command.Search, command.SortBy, command.SortOrder))
 }
 
 func (uc *ConnectSectionUseCase) HandleGetEntityCommand(ctx context.Context, token, sectionID string, command domain.GetEntityCommand, entity string) (*domain.Message, error) {
-	return uc.handleDetailCommand(ctx, token, sectionID, entity, command.ID, func(c context.Context, t, s, resource string) (*domain.SectionSnapshot, error) {
-		return uc.SnapshotFetcher.FetchEntityDetail(c, t, entity, resource)
-	})
+	return uc.handleDetailCommand(ctx, token, sectionID, entity, command.ID)
 }
 
 func (uc *ConnectSectionUseCase) handleListCommand(
 	ctx context.Context,
 	token, sectionID, entity string,
 	query domain.PagedQuery,
-	fetchFn func(context.Context, string, string, domain.PagedQuery) (*domain.SectionSnapshot, domain.PagedQuery, error),
 ) (*domain.Message, error) {
-	snapshot, normalized, err := fetchFn(ctx, token, sectionID, query)
+	snapshot, normalized, err := uc.listScope(ctx, entity, token, sectionID, query)
 	if err != nil {
 		return nil, err
 	}
@@ -292,12 +230,13 @@ func (uc *ConnectSectionUseCase) handleListCommand(
 func (uc *ConnectSectionUseCase) handleDetailCommand(
 	ctx context.Context,
 	token, sectionID, entity, resourceID string,
-	fetchFn func(context.Context, string, string, string) (*domain.SectionSnapshot, error),
 ) (*domain.Message, error) {
 	if strings.TrimSpace(resourceID) == "" {
 		return nil, port.ErrSnapshotNotFound
 	}
-	snapshot, err := fetchFn(ctx, token, sectionID, resourceID)
+	snapshot, err := uc.getScope(ctx, entity, token, sectionID, resourceID, func(c context.Context, t, resource string) (*domain.SectionSnapshot, error) {
+		return uc.SnapshotFetcher.FetchEntityDetail(c, t, entity, resource)
+	})
 	if err != nil {
 		return nil, err
 	}
