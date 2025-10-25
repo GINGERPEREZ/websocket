@@ -58,7 +58,11 @@ func BuildDetailMessage(entity, sectionID, restaurantID string, snapshot *Sectio
 	entityName := strings.TrimSpace(entity)
 	resourceKey := detailResourceKey(entityName)
 	if trimmedResource != "" && resourceKey != "" {
-		metadata[resourceKey] = trimmedResource
+		if resourceKey == "sectionId" {
+			metadata["resourceSectionId"] = trimmedResource
+		} else {
+			metadata[resourceKey] = trimmedResource
+		}
 	}
 
 	if snapshot.Restaurant != nil {
@@ -186,6 +190,28 @@ func detailResourceKey(entity string) string {
 		return "tableId"
 	case "reservations":
 		return "reservationId"
+	case "reviews":
+		return "reviewId"
+	case "sections":
+		return "sectionId"
+	case "objects":
+		return "objectId"
+	case "menus":
+		return "menuId"
+	case "dishes":
+		return "dishId"
+	case "images":
+		return "imageId"
+	case "section-objects":
+		return "sectionObjectId"
+	case "payments":
+		return "paymentId"
+	case "subscriptions":
+		return "subscriptionId"
+	case "subscription-plans":
+		return "subscriptionPlanId"
+	case "auth-users":
+		return "userId"
 	default:
 		return "restaurantId"
 	}

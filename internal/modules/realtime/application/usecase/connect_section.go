@@ -95,11 +95,14 @@ func (uc *ConnectSectionUseCase) listScope(ctx context.Context, scope, token, se
 	queryKey := options.CanonicalKey()
 	slog.Debug("connect-section list request", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("queryKey", queryKey))
 
-	snapshot, err := uc.SnapshotFetcher.FetchSection(ctx, token, sectionID, options)
+	snapshot, err := uc.SnapshotFetcher.FetchEntityList(ctx, token, scope, sectionID, options)
 	switch {
 	case errors.Is(err, port.ErrSnapshotNotFound):
 		slog.Warn("connect-section list not found", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("queryKey", queryKey))
 		uc.cache.delete(sectionID, scope, cacheKindList, options, "")
+		return nil, options, err
+	case errors.Is(err, port.ErrSnapshotUnsupported):
+		slog.Warn("connect-section list unsupported", slog.String("sectionId", sectionID), slog.String("scope", scope))
 		return nil, options, err
 	case err != nil:
 		slog.Error("connect-section list fetch failed", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("queryKey", queryKey), slog.Any("error", err))
@@ -140,6 +143,9 @@ func (uc *ConnectSectionUseCase) getScope(ctx context.Context, scope, token, sec
 		slog.Warn("connect-section detail not found", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("resourceId", resource))
 		uc.cache.delete(sectionID, scope, cacheKindItem, domain.PagedQuery{}, resource)
 		return nil, err
+	case errors.Is(err, port.ErrSnapshotUnsupported):
+		slog.Warn("connect-section detail unsupported", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("resourceId", resource))
+		return nil, err
 	case err != nil:
 		slog.Error("connect-section detail fetch failed", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("resourceId", resource), slog.Any("error", err))
 		if cached, ok := uc.cache.get(sectionID, scope, cacheKindItem, domain.PagedQuery{}, resource); ok && cached.snapshot != nil {
@@ -175,11 +181,14 @@ func (uc *ConnectSectionUseCase) GetReservation(ctx context.Context, token, sect
 func (uc *ConnectSectionUseCase) refreshList(ctx context.Context, scope, sectionID string, entry *snapshotCacheEntry, broadcaster *BroadcastUseCase) {
 	options := entry.listOptions
 	queryKey := options.CanonicalKey()
-	snapshot, err := uc.SnapshotFetcher.FetchSection(ctx, entry.token, sectionID, options)
+	snapshot, err := uc.SnapshotFetcher.FetchEntityList(ctx, entry.token, scope, sectionID, options)
 	switch {
 	case errors.Is(err, port.ErrSnapshotNotFound):
 		slog.Warn("connect-section refresh list not found", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("queryKey", queryKey))
 		uc.cache.delete(sectionID, scope, cacheKindList, options, "")
+		return
+	case errors.Is(err, port.ErrSnapshotUnsupported):
+		slog.Warn("connect-section refresh list unsupported", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("queryKey", queryKey))
 		return
 	case err != nil:
 		slog.Error("connect-section refresh list failed", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("queryKey", queryKey), slog.Any("error", err))
@@ -202,18 +211,14 @@ func (uc *ConnectSectionUseCase) refreshItem(ctx context.Context, scope, section
 		snapshot *domain.SectionSnapshot
 		err      error
 	)
-	switch strings.ToLower(strings.TrimSpace(scope)) {
-	case "tables":
-		snapshot, err = uc.SnapshotFetcher.FetchTable(ctx, entry.token, entry.resourceID)
-	case "reservations":
-		snapshot, err = uc.SnapshotFetcher.FetchReservation(ctx, entry.token, entry.resourceID)
-	default:
-		snapshot, err = uc.SnapshotFetcher.FetchRestaurant(ctx, entry.token, entry.resourceID)
-	}
+	snapshot, err = uc.SnapshotFetcher.FetchEntityDetail(ctx, entry.token, scope, entry.resourceID)
 	switch {
 	case errors.Is(err, port.ErrSnapshotNotFound):
 		slog.Warn("connect-section refresh detail not found", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("resourceId", entry.resourceID))
 		uc.cache.delete(sectionID, scope, cacheKindItem, domain.PagedQuery{}, entry.resourceID)
+		return
+	case errors.Is(err, port.ErrSnapshotUnsupported):
+		slog.Warn("connect-section refresh detail unsupported", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("resourceId", entry.resourceID))
 		return
 	case err != nil:
 		slog.Error("connect-section refresh detail failed", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("resourceId", entry.resourceID), slog.Any("error", err))
@@ -253,6 +258,18 @@ func (uc *ConnectSectionUseCase) HandleListReservationsCommand(ctx context.Conte
 
 func (uc *ConnectSectionUseCase) HandleGetReservationCommand(ctx context.Context, token, sectionID string, command reservations.GetReservationCommand, entity string) (*domain.Message, error) {
 	return uc.handleDetailCommand(ctx, token, sectionID, entity, command.ID, uc.GetReservation)
+}
+
+func (uc *ConnectSectionUseCase) HandleListEntityCommand(ctx context.Context, token, sectionID string, command domain.ListEntityCommand, entity string) (*domain.Message, error) {
+	return uc.handleListCommand(ctx, token, sectionID, entity, newPagedQuery(command.Page, command.Limit, command.Search, command.SortBy, command.SortOrder), func(c context.Context, t, s string, q domain.PagedQuery) (*domain.SectionSnapshot, domain.PagedQuery, error) {
+		return uc.listScope(c, entity, t, s, q)
+	})
+}
+
+func (uc *ConnectSectionUseCase) HandleGetEntityCommand(ctx context.Context, token, sectionID string, command domain.GetEntityCommand, entity string) (*domain.Message, error) {
+	return uc.handleDetailCommand(ctx, token, sectionID, entity, command.ID, func(c context.Context, t, s, resource string) (*domain.SectionSnapshot, error) {
+		return uc.SnapshotFetcher.FetchEntityDetail(c, t, entity, resource)
+	})
 }
 
 func (uc *ConnectSectionUseCase) handleListCommand(
