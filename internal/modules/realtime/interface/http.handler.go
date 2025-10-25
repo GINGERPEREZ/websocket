@@ -333,7 +333,7 @@ func newGenericCommandHandler(canonicalEntity, pluralAction, singularAction stri
 func normalizeEntity(raw string) string {
 	trimmed := strings.ToLower(strings.TrimSpace(raw))
 	switch trimmed {
-	case "", "-", "default", "section", "sections":
+	case "", "-", "default":
 		return ""
 	case "restaurant", "restaurants":
 		return "restaurants"
@@ -341,6 +341,8 @@ func normalizeEntity(raw string) string {
 		return "tables"
 	case "reservation", "reservations":
 		return "reservations"
+	case "section", "sections":
+		return "sections"
 	case "review", "reviews":
 		return "reviews"
 	case "object", "objects":
@@ -361,12 +363,6 @@ func normalizeEntity(raw string) string {
 		return "subscription-plans"
 	case "auth-user", "auth-users", "auth_user", "auth_users":
 		return "auth-users"
-	case "section_entities", "sectiones":
-		return "sections"
-	case "sectionentity", "sectiondetail":
-		return "sections"
-	case "section":
-		return "sections"
 	default:
 		return trimmed
 	}
