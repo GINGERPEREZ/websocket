@@ -345,6 +345,8 @@ func normalizeEntity(raw string) string {
 		return "sections"
 	case "review", "reviews":
 		return "reviews"
+	case "sectionobject", "sectionobjects":
+		return "section-objects"
 	case "object", "objects":
 		return "objects"
 	case "menu", "menus":
@@ -361,7 +363,11 @@ func normalizeEntity(raw string) string {
 		return "subscriptions"
 	case "subscription-plan", "subscription-plans", "subscription_plan", "subscription_plans":
 		return "subscription-plans"
+	case "subscriptionplan", "subscriptionplans":
+		return "subscription-plans"
 	case "auth-user", "auth-users", "auth_user", "auth_users":
+		return "auth-users"
+	case "authuser", "authusers", "auth":
 		return "auth-users"
 	default:
 		return trimmed

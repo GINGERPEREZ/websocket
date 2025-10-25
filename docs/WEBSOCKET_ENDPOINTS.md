@@ -18,6 +18,19 @@ The realtime gateway exposes a single websocket entry point per entity. Every ro
 - `restaurants`
 - `tables`
 - `reservations`
+- `reviews`
+- `sections`
+- `objects`
+- `section-objects`
+- `menus`
+- `dishes`
+- `images`
+- `payments`
+- `subscriptions`
+- `subscription-plans`
+- `auth-users`
+
+Aliases such as `auth`, `auth_user`, `section_object`, or `subscriptionplans` are normalized automatically to the slugged forms above.
 
 If the path segment resolves to `section`, `sections`, or `default`, the handler falls back to the configured default entity (`WEBSOCKET_DEFAULT_ENTITY`). Any other value must be integrated following the extension guide below.
 
@@ -85,6 +98,17 @@ Payload contracts are defined in `internal/modules/restaurants/domain`. Example 
 
 #### Reservations
 
+#### Auth Users
+
+```json
+{
+  "action": "get_auth_user",
+  "payload": {
+    "id": "user-42"
+  }
+}
+```
+
 ```json
 {
   "action": "list_reservations",
@@ -102,10 +126,10 @@ Errors are returned through `{entity}.error` messages containing the `reason` in
 Follow these steps to wire a new domain (for example `users`) into the websocket gateway:
 
 1. **Model**: Create the domain module under `internal/modules/<entity>/domain` with the list/detail command DTOs.
-2. **Ports**: Extend `internal/modules/realtime/application/port/section_snapshot_fetcher.go` with fetch functions for the new entity (list, detail).
-3. **Infrastructure**: Update `internal/modules/realtime/infrastructure/section_snapshot_http_client.go` to call the REST endpoint that serves the entity snapshots.
-4. **Use case**: Add `HandleList<Entity>Command` and `HandleGet<Entity>Command` in `internal/modules/realtime/application/usecase/connect_section.go`.
-5. **Handler registry**: Register the entity in `entityHandlers` inside `internal/modules/realtime/interface/http.handler.go` and implement a command handler similar to the existing ones.
+2. **Ports**: Extend `internal/modules/realtime/application/port/section_snapshot_fetcher.go` only if a custom adapter is required; otherwise reuse the generic helpers.
+3. **Infrastructure**: Update the `entityEndpoints` map in `internal/modules/realtime/infrastructure/section_snapshot_http_client.go` with the REST paths for list/detail operations.
+4. **Use case**: Reuse `HandleListEntityCommand` / `HandleGetEntityCommand` or add specialized handlers if the payload diverges from the generic DTOs.
+5. **Handler registry**: Register the entity in `entityHandlers` inside `internal/modules/realtime/interface/http.handler.go` (the generic handler covers most cases).
 6. **Kafka**: Configure the new topics in `config/websocket.yaml` (or the corresponding environment variables) so the broadcaster receives change events.
 7. **Docs**: Update this document with the new entity commands and any custom payload fields.
 8. **Tests**: Add coverage for the new normalization branch and any command-specific behavior.
