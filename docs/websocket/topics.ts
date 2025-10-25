@@ -35,6 +35,7 @@ export const WEBSOCKET_TOPICS = {
   reservations: createEntityTopics("reservations"),
   payments: createEntityTopics("payments"),
   subscriptions: createEntityTopics("subscriptions"),
+  "subscription-plans": createEntityTopics("subscription-plans"),
   "auth-users": createEntityTopics("auth-users"),
 } as const;
 
@@ -56,6 +57,7 @@ export const WEBSOCKET_COMMANDS = {
   reservations: createEntityCommands("reservations", "reservation"),
   payments: createEntityCommands("payments", "payment"),
   subscriptions: createEntityCommands("subscriptions", "subscription"),
+  "subscription-plans": createEntityCommands("subscription_plans", "subscription_plan"),
   "auth-users": createEntityCommands("auth_users", "auth_user"),
 } as const;
 
