@@ -3,10 +3,6 @@ package domain
 import (
 	"testing"
 	"time"
-
-	reservations "mesaYaWs/internal/modules/reservations/domain"
-	restaurants "mesaYaWs/internal/modules/restaurants/domain"
-	tables "mesaYaWs/internal/modules/tables/domain"
 )
 
 func TestBuildDetailMessageIncludesDaysOpenMetadata(t *testing.T) {
@@ -14,40 +10,33 @@ func TestBuildDetailMessageIncludesDaysOpenMetadata(t *testing.T) {
 	close, _ := time.Parse("15:04", "18:00")
 	snapshot := &SectionSnapshot{
 		Payload: map[string]any{"id": "rest-1"},
-		Restaurant: &restaurants.Restaurant{
-			ID:     "rest-1",
-			Name:   "  Fancy Place  ",
-			Status: restaurants.RestaurantStatusActive,
-			Schedule: restaurants.Schedule{
-				Open:  open,
-				Close: close,
-			},
-			DaysOpen:     []restaurants.DayOfWeek{restaurants.Monday, restaurants.Saturday},
-			Subscription: 3,
-		},
-		TableList: &tables.TableList{
-			Items: []tables.Table{
-				{ID: "table-1", State: tables.TableStateAvailable},
-				{ID: "table-2", State: tables.TableStateReserved},
-				{ID: "table-3", State: tables.TableStateCleaning},
-			},
-		},
-		Table: &tables.Table{ID: "table-2", State: tables.TableStateReserved, Number: 12, Capacity: 4},
-		ReservationList: &reservations.ReservationList{
-			Items: []reservations.Reservation{
-				{ID: "res-1", Status: reservations.ReservationStatusPending},
-				{ID: "res-2", Status: reservations.ReservationStatusConfirmed},
-				{ID: "res-3", Status: reservations.ReservationStatusCancelled},
-				{ID: "res-4", Status: reservations.ReservationStatusNoShow},
-			},
-		},
-		Reservation: &reservations.Reservation{
-			ID:              "res-2",
-			TableID:         "table-2",
-			Status:          reservations.ReservationStatusConfirmed,
-			Guests:          5,
-			ReservationDate: "2025-10-20",
-			ReservationTime: "20:30",
+		DetailMetadata: Metadata{
+			"restaurantName":        "Fancy Place",
+			"restaurantStatus":      "ACTIVE",
+			"openTime":              open.Format("15:04"),
+			"closeTime":             close.Format("15:04"),
+			"openDurationMinutes":   "540",
+			"subscriptionId":        "3",
+			"daysOpen":              "MONDAY,SATURDAY",
+			"tablesCount":           "3",
+			"tablesAvailable":       "1",
+			"tablesReserved":        "1",
+			"tablesCleaning":        "1",
+			"tableId":               "table-2",
+			"tableState":            "RESERVED",
+			"tableNumber":           "12",
+			"tableCapacity":         "4",
+			"reservationsCount":     "4",
+			"reservationsPending":   "1",
+			"reservationsConfirmed": "1",
+			"reservationsCancelled": "1",
+			"reservationsNoShow":    "1",
+			"reservationId":         "res-2",
+			"reservationStatus":     "CONFIRMED",
+			"reservationGuests":     "5",
+			"reservationDate":       "2025-10-20",
+			"reservationTime":       "20:30",
+			"reservationTableId":    "table-2",
 		},
 	}
 
@@ -151,9 +140,9 @@ func TestBuildDetailMessageIncludesDaysOpenMetadata(t *testing.T) {
 func TestBuildListMessageIncludesCounts(t *testing.T) {
 	snapshot := &SectionSnapshot{
 		Payload: map[string]any{"items": []any{"a", "b"}},
-		RestaurantList: &restaurants.RestaurantList{
-			Items: []restaurants.Restaurant{{ID: "1"}, {ID: "2"}},
-			Total: 10,
+		ListMetadata: Metadata{
+			"itemsCount": "2",
+			"total":      "10",
 		},
 	}
 	query := PagedQuery{Page: 2, Limit: 50, Search: ""}
