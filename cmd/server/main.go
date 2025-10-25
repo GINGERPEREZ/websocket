@@ -7,15 +7,6 @@ import (
 	"io"
 	"log"
 	"log/slog"
-	"mesaYaWs/internal/app"
-	"mesaYaWs/internal/broker"
-	"mesaYaWs/internal/config"
-	handler "mesaYaWs/internal/realtime/application/handler"
-	usecase "mesaYaWs/internal/realtime/application/usecase"
-	"mesaYaWs/internal/realtime/infrastructure"
-	"mesaYaWs/internal/realtime/transport"
-	"mesaYaWs/internal/shared/auth"
-	"mesaYaWs/internal/shared/logging"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -24,6 +15,15 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
+
+	"mesaYaWs/internal/config"
+	handler "mesaYaWs/internal/modules/realtime/application/handler"
+	usecase "mesaYaWs/internal/modules/realtime/application/usecase"
+	"mesaYaWs/internal/modules/realtime/infrastructure"
+	transport "mesaYaWs/internal/modules/realtime/interface"
+	"mesaYaWs/internal/platform/broker"
+	"mesaYaWs/internal/shared/auth"
+	"mesaYaWs/internal/shared/logging"
 )
 
 func main() {
@@ -50,7 +50,7 @@ func main() {
 	slog.Info("kafka env snapshot", slog.String("KAFKA_BROKERS", os.Getenv("KAFKA_BROKERS")), slog.String("KAFKA_BROKER", os.Getenv("KAFKA_BROKER")))
 	slog.Info("kafka config resolved", slog.Any("brokers", cfg.Kafka.Brokers), slog.String("group", cfg.Kafka.GroupID))
 
-	hub := app.NewAppHub()
+	hub := infrastructure.NewHub()
 	registry := infrastructure.NewHandlerRegistry()
 
 	// Use cases
@@ -83,8 +83,13 @@ func main() {
 	}
 	broker.StartKafkaConsumers(ctx, registry, cfg.Kafka.Brokers, cfg.Kafka.GroupID, topics)
 
-	// expose websocket route for restaurant sections: /ws/restaurant/:section/:token
-	e.GET("/ws/restaurant/:section/:token", transport.NewWebsocketHandler(hub, connectUC, cfg.Websocket.DefaultEntity, cfg.Websocket.AllowedActions))
+	wsHandler := transport.NewWebsocketHandler(hub, connectUC, cfg.Websocket.DefaultEntity, cfg.Websocket.AllowedActions)
+	// Generic entity routes: allow token in path or via query/header fallback
+	e.GET("/ws/:entity/:section/:token", wsHandler)
+	e.GET("/ws/:entity/:section", wsHandler)
+	// Backwards compatible restaurant-specific routes
+	e.GET("/ws/restaurant/:section/:token", wsHandler)
+	e.GET("/ws/restaurant/:section", wsHandler)
 
 	go func() {
 		if err := e.Start(":" + cfg.Server.Port); err != nil {
