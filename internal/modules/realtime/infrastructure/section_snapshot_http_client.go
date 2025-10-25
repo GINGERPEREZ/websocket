@@ -48,22 +48,6 @@ func NewSectionSnapshotHTTPClient(baseURL string, timeout time.Duration, client 
 	return &SectionSnapshotHTTPClient{rest: NewRESTClient(baseURL, timeout, client), timeout: timeoutOrDefault(timeout)}
 }
 
-func (c *SectionSnapshotHTTPClient) FetchSection(ctx context.Context, token, sectionID string, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
-	return c.FetchEntityList(ctx, token, "restaurants", sectionID, query)
-}
-
-func (c *SectionSnapshotHTTPClient) FetchRestaurant(ctx context.Context, token, restaurantID string) (*domain.SectionSnapshot, error) {
-	return c.FetchEntityDetail(ctx, token, "restaurants", restaurantID)
-}
-
-func (c *SectionSnapshotHTTPClient) FetchTable(ctx context.Context, token, tableID string) (*domain.SectionSnapshot, error) {
-	return c.FetchEntityDetail(ctx, token, "tables", tableID)
-}
-
-func (c *SectionSnapshotHTTPClient) FetchReservation(ctx context.Context, token, reservationID string) (*domain.SectionSnapshot, error) {
-	return c.FetchEntityDetail(ctx, token, "reservations", reservationID)
-}
-
 func (c *SectionSnapshotHTTPClient) FetchEntityList(ctx context.Context, token, entity, sectionID string, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
 	endpoint, ok := entityEndpoints[strings.ToLower(strings.TrimSpace(entity))]
 	if !ok || endpoint.listPath == "" {
