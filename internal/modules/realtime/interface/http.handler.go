@@ -16,9 +16,6 @@ import (
 	"mesaYaWs/internal/modules/realtime/application/usecase"
 	domain "mesaYaWs/internal/modules/realtime/domain"
 	"mesaYaWs/internal/modules/realtime/infrastructure"
-	reservations "mesaYaWs/internal/modules/reservations/domain"
-	restaurants "mesaYaWs/internal/modules/restaurants/domain"
-	tables "mesaYaWs/internal/modules/tables/domain"
 	"mesaYaWs/internal/shared/auth"
 )
 
@@ -232,17 +229,15 @@ func sendCommandError(client *infrastructure.Client, entity, section, action, re
 type commandHandlerFactory func(entity, section, token string, connectUC *usecase.ConnectSectionUseCase) func(context.Context, *infrastructure.Client, infrastructure.Command)
 
 var entityHandlers = func() map[string]commandHandlerFactory {
-	handlers := map[string]commandHandlerFactory{
-		"restaurants":  newRestaurantCommandHandler,
-		"tables":       newTableCommandHandler,
-		"reservations": newReservationCommandHandler,
-	}
-
-	for _, cfg := range []struct {
+	handlers := make(map[string]commandHandlerFactory)
+	configs := []struct {
 		entity   string
 		plural   string
 		singular string
 	}{
+		{entity: "restaurants", plural: "restaurants", singular: "restaurant"},
+		{entity: "tables", plural: "tables", singular: "table"},
+		{entity: "reservations", plural: "reservations", singular: "reservation"},
 		{entity: "reviews", plural: "reviews", singular: "review"},
 		{entity: "sections", plural: "sections", singular: "section"},
 		{entity: "objects", plural: "objects", singular: "object"},
@@ -254,60 +249,12 @@ var entityHandlers = func() map[string]commandHandlerFactory {
 		{entity: "subscriptions", plural: "subscriptions", singular: "subscription"},
 		{entity: "subscription-plans", plural: "subscription_plans", singular: "subscription_plan"},
 		{entity: "auth-users", plural: "auth_users", singular: "auth_user"},
-	} {
+	}
+	for _, cfg := range configs {
 		handlers[cfg.entity] = newGenericCommandHandler(cfg.entity, cfg.plural, cfg.singular)
 	}
-
 	return handlers
 }()
-
-func newRestaurantCommandHandler(entity, section, token string, connectUC *usecase.ConnectSectionUseCase) func(context.Context, *infrastructure.Client, infrastructure.Command) {
-	return func(cmdCtx context.Context, client *infrastructure.Client, cmd infrastructure.Command) {
-		switch strings.ToLower(strings.TrimSpace(cmd.Action)) {
-		case "list_restaurants", "fetch_all", "list":
-			executeListCommand[restaurants.ListRestaurantsCommand](cmdCtx, entity, section, token, cmd, client, connectUC.HandleListRestaurantsCommand)
-		case "get_restaurant", "fetch_one", "detail":
-			executeDetailCommand[restaurants.GetRestaurantCommand](cmdCtx, entity, section, token, cmd, client, connectUC.HandleGetRestaurantCommand, func(command restaurants.GetRestaurantCommand) string {
-				return command.ID
-			})
-		default:
-			slog.Debug("ws handler restaurant unknown action", slog.String("entity", entity), slog.String("sectionId", section), slog.String("action", cmd.Action))
-			sendCommandError(client, entity, section, "unknown", "unsupported action")
-		}
-	}
-}
-
-func newTableCommandHandler(entity, section, token string, connectUC *usecase.ConnectSectionUseCase) func(context.Context, *infrastructure.Client, infrastructure.Command) {
-	return func(cmdCtx context.Context, client *infrastructure.Client, cmd infrastructure.Command) {
-		switch strings.ToLower(strings.TrimSpace(cmd.Action)) {
-		case "list_tables", "list", "fetch_all":
-			executeListCommand[tables.ListTablesCommand](cmdCtx, entity, section, token, cmd, client, connectUC.HandleListTablesCommand)
-		case "get_table", "detail", "fetch_one":
-			executeDetailCommand[tables.GetTableCommand](cmdCtx, entity, section, token, cmd, client, connectUC.HandleGetTableCommand, func(command tables.GetTableCommand) string {
-				return command.ID
-			})
-		default:
-			slog.Debug("ws handler table unknown action", slog.String("entity", entity), slog.String("sectionId", section), slog.String("action", cmd.Action))
-			sendCommandError(client, entity, section, "unknown", "unsupported action")
-		}
-	}
-}
-
-func newReservationCommandHandler(entity, section, token string, connectUC *usecase.ConnectSectionUseCase) func(context.Context, *infrastructure.Client, infrastructure.Command) {
-	return func(cmdCtx context.Context, client *infrastructure.Client, cmd infrastructure.Command) {
-		switch strings.ToLower(strings.TrimSpace(cmd.Action)) {
-		case "list_reservations", "list", "fetch_all":
-			executeListCommand[reservations.ListReservationsCommand](cmdCtx, entity, section, token, cmd, client, connectUC.HandleListReservationsCommand)
-		case "get_reservation", "detail", "fetch_one":
-			executeDetailCommand[reservations.GetReservationCommand](cmdCtx, entity, section, token, cmd, client, connectUC.HandleGetReservationCommand, func(command reservations.GetReservationCommand) string {
-				return command.ID
-			})
-		default:
-			slog.Debug("ws handler reservation unknown action", slog.String("entity", entity), slog.String("sectionId", section), slog.String("action", cmd.Action))
-			sendCommandError(client, entity, section, "unknown", "unsupported action")
-		}
-	}
-}
 
 func newGenericCommandHandler(canonicalEntity, pluralAction, singularAction string) commandHandlerFactory {
 	normalizedPlural := strings.ToLower(strings.TrimSpace(pluralAction))
