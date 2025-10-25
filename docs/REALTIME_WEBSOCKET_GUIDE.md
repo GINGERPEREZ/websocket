@@ -31,6 +31,13 @@ Clean Architecture rules:
 5. **Snapshot Fetching** – Use cases call `port.SectionSnapshotFetcher`, implemented by `infrastructure/section_snapshot_http_client.go`, to query the REST API. Responses are cached per section/entity/query.
 6. **Broadcasting** – Domain changes arriving from Kafka are transformed into `domain.Message` structs by application handlers and relayed through `BroadcastUseCase` to the WebSocket hub.
 
+## Metadata & Payload Strategy
+
+- `SectionSnapshot` always delivers the REST payload verbatim through the `Payload` field; metadata maps are optional and default to `nil`.
+- We intentionally avoid deriving entity-specific metadata inside the Go adapter to keep the realtime layer decoupled from upstream REST schemas. Any enrichment must either come from the upstream service or be negotiated at the domain level.
+- When future features require additional fields, prefer updating the REST response itself (so the payload remains source-of-truth) instead of reviving local normalizers. This prevents breakages whenever the REST contract evolves.
+- Downstream websocket consumers should treat metadata maps as optional hints; feature-critical information must live in the payload to guarantee compatibility across services.
+
 ## Adding a New WebSocket Entity
 
 Follow these steps to introduce an entity (e.g. `users`) that should expose realtime data:
