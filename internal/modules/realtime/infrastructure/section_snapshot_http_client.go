@@ -30,20 +30,20 @@ type entityEndpoint struct {
 }
 
 var entityEndpoints = map[string]entityEndpoint{
-	"restaurants":       {listPath: "/api/v1/restaurant", detailPath: "/api/v1/restaurant"},
-	"tables":            {listPath: "/api/v1/table", detailPath: "/api/v1/table"},
-	"reservations":      {listPath: "/api/v1/reservations", detailPath: "/api/v1/reservations"},
-	"reviews":           {listPath: "/api/v1/review", detailPath: "/api/v1/review"},
-	"sections":          {listPath: "/api/v1/section", detailPath: "/api/v1/section"},
-	"objects":           {listPath: "/api/v1/object", detailPath: "/api/v1/object"},
-	"menus":             {listPath: "/api/v1/menus", detailPath: "/api/v1/menus"},
-	"dishes":            {listPath: "/api/v1/dishes", detailPath: "/api/v1/dishes"},
-	"images":            {listPath: "/api/v1/image", detailPath: "/api/v1/image"},
-	"section-objects":   {listPath: "/api/v1/section-object", detailPath: "/api/v1/section-object"},
-	"payments":          {listPath: "/api/v1/payments", detailPath: "/api/v1/payments"},
-	"subscriptions":     {listPath: "/api/v1/subscriptions", detailPath: "/api/v1/subscriptions"},
+	"restaurants":        {listPath: "/api/v1/restaurant", detailPath: "/api/v1/restaurant"},
+	"tables":             {listPath: "/api/v1/table", detailPath: "/api/v1/table"},
+	"reservations":       {listPath: "/api/v1/reservations", detailPath: "/api/v1/reservations"},
+	"reviews":            {listPath: "/api/v1/review", detailPath: "/api/v1/review"},
+	"sections":           {listPath: "/api/v1/section", detailPath: "/api/v1/section"},
+	"objects":            {listPath: "/api/v1/object", detailPath: "/api/v1/object"},
+	"menus":              {listPath: "/api/v1/menus", detailPath: "/api/v1/menus"},
+	"dishes":             {listPath: "/api/v1/dishes", detailPath: "/api/v1/dishes"},
+	"images":             {listPath: "/api/v1/image", detailPath: "/api/v1/image"},
+	"section-objects":    {listPath: "/api/v1/section-object", detailPath: "/api/v1/section-object"},
+	"payments":           {listPath: "/api/v1/payments", detailPath: "/api/v1/payments"},
+	"subscriptions":      {listPath: "/api/v1/subscriptions", detailPath: "/api/v1/subscriptions"},
 	"subscription-plans": {listPath: "/api/v1/subscription-plans", detailPath: "/api/v1/subscription-plans"},
-	"auth-users":        {listPath: "/api/v1/auth/admin/users", detailPath: "/api/v1/auth/admin/users"},
+	"auth-users":         {listPath: "/api/v1/auth/admin/users", detailPath: "/api/v1/auth/admin/users"},
 }
 
 func NewSectionSnapshotHTTPClient(baseURL string, timeout time.Duration, client *http.Client) *SectionSnapshotHTTPClient {

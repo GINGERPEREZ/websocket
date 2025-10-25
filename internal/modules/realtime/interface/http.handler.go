@@ -231,11 +231,35 @@ func sendCommandError(client *infrastructure.Client, entity, section, action, re
 
 type commandHandlerFactory func(entity, section, token string, connectUC *usecase.ConnectSectionUseCase) func(context.Context, *infrastructure.Client, infrastructure.Command)
 
-var entityHandlers = map[string]commandHandlerFactory{
-	"restaurants":  newRestaurantCommandHandler,
-	"tables":       newTableCommandHandler,
-	"reservations": newReservationCommandHandler,
-}
+var entityHandlers = func() map[string]commandHandlerFactory {
+	handlers := map[string]commandHandlerFactory{
+		"restaurants":  newRestaurantCommandHandler,
+		"tables":       newTableCommandHandler,
+		"reservations": newReservationCommandHandler,
+	}
+
+	for _, cfg := range []struct {
+		entity   string
+		plural   string
+		singular string
+	}{
+		{entity: "reviews", plural: "reviews", singular: "review"},
+		{entity: "sections", plural: "sections", singular: "section"},
+		{entity: "objects", plural: "objects", singular: "object"},
+		{entity: "menus", plural: "menus", singular: "menu"},
+		{entity: "dishes", plural: "dishes", singular: "dish"},
+		{entity: "images", plural: "images", singular: "image"},
+		{entity: "section-objects", plural: "section_objects", singular: "section_object"},
+		{entity: "payments", plural: "payments", singular: "payment"},
+		{entity: "subscriptions", plural: "subscriptions", singular: "subscription"},
+		{entity: "subscription-plans", plural: "subscription_plans", singular: "subscription_plan"},
+		{entity: "auth-users", plural: "auth_users", singular: "auth_user"},
+	} {
+		handlers[cfg.entity] = newGenericCommandHandler(cfg.entity, cfg.plural, cfg.singular)
+	}
+
+	return handlers
+}()
 
 func newRestaurantCommandHandler(entity, section, token string, connectUC *usecase.ConnectSectionUseCase) func(context.Context, *infrastructure.Client, infrastructure.Command) {
 	return func(cmdCtx context.Context, client *infrastructure.Client, cmd infrastructure.Command) {
@@ -285,6 +309,27 @@ func newReservationCommandHandler(entity, section, token string, connectUC *usec
 	}
 }
 
+func newGenericCommandHandler(canonicalEntity, pluralAction, singularAction string) commandHandlerFactory {
+	normalizedPlural := strings.ToLower(strings.TrimSpace(pluralAction))
+	normalizedSingular := strings.ToLower(strings.TrimSpace(singularAction))
+	return func(entity, section, token string, connectUC *usecase.ConnectSectionUseCase) func(context.Context, *infrastructure.Client, infrastructure.Command) {
+		return func(cmdCtx context.Context, client *infrastructure.Client, cmd infrastructure.Command) {
+			action := strings.ToLower(strings.TrimSpace(cmd.Action))
+			switch action {
+			case "list_" + normalizedPlural, "list", "fetch_all":
+				executeListCommand[domain.ListEntityCommand](cmdCtx, entity, section, token, cmd, client, connectUC.HandleListEntityCommand)
+			case "get_" + normalizedSingular, "detail", "fetch_one":
+				executeDetailCommand[domain.GetEntityCommand](cmdCtx, entity, section, token, cmd, client, connectUC.HandleGetEntityCommand, func(command domain.GetEntityCommand) string {
+					return command.ID
+				})
+			default:
+				slog.Debug("ws handler generic unknown action", slog.String("entity", entity), slog.String("sectionId", section), slog.String("action", cmd.Action))
+				sendCommandError(client, entity, section, "unknown", "unsupported action")
+			}
+		}
+	}
+}
+
 func normalizeEntity(raw string) string {
 	trimmed := strings.ToLower(strings.TrimSpace(raw))
 	switch trimmed {
@@ -296,6 +341,32 @@ func normalizeEntity(raw string) string {
 		return "tables"
 	case "reservation", "reservations":
 		return "reservations"
+	case "review", "reviews":
+		return "reviews"
+	case "object", "objects":
+		return "objects"
+	case "menu", "menus":
+		return "menus"
+	case "dish", "dishes":
+		return "dishes"
+	case "image", "images":
+		return "images"
+	case "section-object", "section-objects", "section_object", "section_objects":
+		return "section-objects"
+	case "payment", "payments":
+		return "payments"
+	case "subscription", "subscriptions":
+		return "subscriptions"
+	case "subscription-plan", "subscription-plans", "subscription_plan", "subscription_plans":
+		return "subscription-plans"
+	case "auth-user", "auth-users", "auth_user", "auth_users":
+		return "auth-users"
+	case "section_entities", "sectiones":
+		return "sections"
+	case "sectionentity", "sectiondetail":
+		return "sections"
+	case "section":
+		return "sections"
 	default:
 		return trimmed
 	}
