@@ -38,7 +38,7 @@ func TestConnectSectionUseCase_HandleListCommandSuccess(t *testing.T) {
 	if msg == nil {
 		t.Fatal("expected message, got nil")
 	}
-	if msg.Topic != "restaurants.list" {
+	if msg.Topic != domain.ListTopic("restaurants") {
 		t.Fatalf("unexpected topic: %s", msg.Topic)
 	}
 	if msg.Entity != "restaurants" {
@@ -119,7 +119,7 @@ func TestConnectSectionUseCase_HandleDetailCommandSuccess(t *testing.T) {
 	if msg == nil {
 		t.Fatal("expected message, got nil")
 	}
-	if msg.Topic != "tables.detail" {
+	if msg.Topic != domain.DetailTopic("tables") {
 		t.Fatalf("unexpected topic: %s", msg.Topic)
 	}
 	if msg.Metadata["tableId"] != "resource-9" {

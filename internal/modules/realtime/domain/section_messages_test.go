@@ -57,7 +57,7 @@ func TestBuildDetailMessageIncludesDaysOpenMetadata(t *testing.T) {
 		t.Fatal("expected message, got nil")
 	}
 
-	if msg.Topic != "restaurant.detail" {
+	if msg.Topic != DetailTopic("restaurant") {
 		t.Fatalf("unexpected topic: %s", msg.Topic)
 	}
 	if msg.Entity != "restaurant" {
@@ -164,7 +164,7 @@ func TestBuildListMessageIncludesCounts(t *testing.T) {
 		t.Fatal("expected message, got nil")
 	}
 
-	if msg.Topic != "restaurant.list" {
+	if msg.Topic != ListTopic("restaurant") {
 		t.Fatalf("unexpected topic: %s", msg.Topic)
 	}
 	if msg.Entity != "restaurant" {

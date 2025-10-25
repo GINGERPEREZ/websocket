@@ -34,9 +34,9 @@ func BuildListMessage(entity, sectionID string, snapshot *SectionSnapshot, query
 
 	entityName := strings.TrimSpace(entity)
 	return &Message{
-		Topic:      entityName + ".list",
+		Topic:      ListTopic(entityName),
 		Entity:     entityName,
-		Action:     "list",
+		Action:     ActionList,
 		ResourceID: strings.TrimSpace(sectionID),
 		Metadata:   metadata,
 		Data:       snapshot.Payload,
@@ -170,9 +170,9 @@ func BuildDetailMessage(entity, sectionID, restaurantID string, snapshot *Sectio
 	}
 
 	return &Message{
-		Topic:      entityName + ".detail",
+		Topic:      DetailTopic(entityName),
 		Entity:     entityName,
-		Action:     "detail",
+		Action:     ActionDetail,
 		ResourceID: trimmedResource,
 		Metadata:   metadata,
 		Data:       snapshot.Payload,

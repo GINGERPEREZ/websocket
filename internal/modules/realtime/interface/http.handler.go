@@ -149,9 +149,9 @@ func NewWebsocketHandler(
 		go client.ReadPump()
 
 		connected := &domain.Message{
-			Topic:  "system.connected",
-			Entity: "system",
-			Action: "connected",
+			Topic:  domain.TopicSystemConnected,
+			Entity: domain.SystemEntity,
+			Action: domain.ActionConnected,
 			Metadata: map[string]string{
 				"userId":    userID,
 				"sessionId": sessionID,
@@ -177,19 +177,27 @@ func NewWebsocketHandler(
 
 func buildTopics(entity string, allowedActions []string) []string {
 	entity = strings.TrimSpace(entity)
-	topics := []string{entity + ".snapshot", entity + ".list", entity + ".detail", entity + ".error"}
-	seen := map[string]struct{}{
-		topics[0]: {},
-		topics[1]: {},
-		topics[2]: {},
-		topics[3]: {},
+	baseTopics := []string{
+		domain.SnapshotTopic(entity),
+		domain.ListTopic(entity),
+		domain.DetailTopic(entity),
+		domain.ErrorTopic(entity),
+	}
+	topics := make([]string, 0, len(baseTopics)+len(allowedActions))
+	seen := make(map[string]struct{}, len(baseTopics)+len(allowedActions))
+	for _, topic := range baseTopics {
+		if topic == "" {
+			continue
+		}
+		topics = append(topics, topic)
+		seen[topic] = struct{}{}
 	}
 	for _, action := range allowedActions {
 		action = strings.TrimSpace(strings.ToLower(action))
 		if action == "" {
 			continue
 		}
-		topic := entity + "." + action
+		topic := domain.CustomTopic(entity, action)
 		if _, exists := seen[topic]; exists {
 			continue
 		}
@@ -208,9 +216,9 @@ func sendCommandError(client *infrastructure.Client, entity, section, action, re
 		metadata["reason"] = reason
 	}
 	message := &domain.Message{
-		Topic:      entity + ".error",
+		Topic:      domain.ErrorTopic(entity),
 		Entity:     entity,
-		Action:     "error",
+		Action:     domain.ActionError,
 		ResourceID: section,
 		Metadata:   metadata,
 		Data: map[string]string{
