@@ -8,15 +8,12 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
-	"strconv"
 	"strings"
 	"time"
 
 	"mesaYaWs/internal/modules/realtime/application/port"
 	"mesaYaWs/internal/modules/realtime/domain"
-	reservations "mesaYaWs/internal/modules/reservations/domain"
-	restaurants "mesaYaWs/internal/modules/restaurants/domain"
-	tables "mesaYaWs/internal/modules/tables/domain"
+	"mesaYaWs/internal/shared/normalization"
 )
 
 // SectionSnapshotHTTPClient implements SectionSnapshotFetcher using the REST API described in swagger.json.
@@ -86,7 +83,14 @@ func (c *SectionSnapshotHTTPClient) FetchEntityList(ctx context.Context, token, 
 		defer cancel()
 	}
 
-	return c.performListRequest(ctx, token, endpoint.listPath, sectionID, query)
+	snapshot, err := c.performListRequest(ctx, token, endpoint.listPath, sectionID, query)
+	if err != nil {
+		return nil, err
+	}
+	if meta := domain.ListMetadataFor(entity, snapshot.Payload); len(meta) > 0 {
+		snapshot.MergeListMetadata(meta)
+	}
+	return snapshot, nil
 }
 
 func (c *SectionSnapshotHTTPClient) FetchEntityDetail(ctx context.Context, token, entity, resourceID string) (*domain.SectionSnapshot, error) {
@@ -109,7 +113,17 @@ func (c *SectionSnapshotHTTPClient) FetchEntityDetail(ctx context.Context, token
 		defer cancel()
 	}
 
-	return c.performDetailRequest(ctx, token, endpoint.detailPath, resource)
+	snapshot, err := c.performDetailRequest(ctx, token, endpoint.detailPath, resource)
+	if err != nil {
+		return nil, err
+	}
+	if meta := domain.DetailMetadataFor(entity, snapshot.Payload); len(meta) > 0 {
+		snapshot.MergeDetailMetadata(meta)
+	}
+	if listMeta := domain.ListMetadataFor(entity, snapshot.Payload); len(listMeta) > 0 {
+		snapshot.MergeListMetadata(listMeta)
+	}
+	return snapshot, nil
 }
 
 func (c *SectionSnapshotHTTPClient) performListRequest(ctx context.Context, token, basePath, sectionID string, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
@@ -196,234 +210,18 @@ func decodeSectionSnapshot(body io.Reader) (*domain.SectionSnapshot, error) {
 	slog.Debug("snapshot payload decoded", slog.String("type", fmt.Sprintf("%T", payload)))
 
 	normalized := normalizeSnapshotPayload(payload)
-	snapshot := &domain.SectionSnapshot{Payload: normalized}
-
-	if list, ok := restaurants.BuildRestaurantList(normalized); ok {
-		snapshot.MergeListMetadata(restaurantListMetadata(list))
-	}
-	if restaurant, ok := restaurants.BuildRestaurantDetail(normalized); ok {
-		snapshot.MergeDetailMetadata(restaurantDetailMetadata(restaurant))
-	}
-	if tableList, ok := tables.BuildTableList(normalized); ok {
-		meta := tableListMetadata(tableList)
-		snapshot.MergeListMetadata(meta)
-		snapshot.MergeDetailMetadata(meta)
-	}
-	if table, ok := tables.BuildTableDetail(normalized); ok {
-		snapshot.MergeDetailMetadata(tableDetailMetadata(table))
-	}
-	if reservationList, ok := reservations.BuildReservationList(normalized); ok {
-		meta := reservationListMetadata(reservationList)
-		snapshot.MergeListMetadata(meta)
-		snapshot.MergeDetailMetadata(meta)
-	}
-	if reservation, ok := reservations.BuildReservationDetail(normalized); ok {
-		snapshot.MergeDetailMetadata(reservationDetailMetadata(reservation))
-	}
-	return snapshot, nil
+	return &domain.SectionSnapshot{Payload: normalized}, nil
 }
 
 func normalizeSnapshotPayload(payload interface{}) map[string]any {
 	switch typed := payload.(type) {
 	case map[string]interface{}:
-		return typed
+		return normalization.MapFromPayload(typed)
 	case []interface{}:
 		return map[string]any{"items": typed}
 	default:
 		return map[string]any{"value": typed}
 	}
-}
-
-func restaurantListMetadata(list *restaurants.RestaurantList) domain.Metadata {
-	if list == nil {
-		return nil
-	}
-	meta := domain.Metadata{}
-	if count := len(list.Items); count > 0 {
-		meta["itemsCount"] = strconv.Itoa(count)
-	}
-	if list.Total > 0 {
-		meta["total"] = strconv.Itoa(list.Total)
-	}
-	return meta
-}
-
-func restaurantDetailMetadata(restaurant *restaurants.Restaurant) domain.Metadata {
-	if restaurant == nil {
-		return nil
-	}
-	meta := domain.Metadata{}
-	if name := strings.TrimSpace(restaurant.Name); name != "" {
-		meta["restaurantName"] = name
-	}
-	if status := strings.TrimSpace(string(restaurant.Status)); status != "" {
-		meta["restaurantStatus"] = status
-	}
-	schedule := restaurant.Schedule
-	if !schedule.Open.IsZero() {
-		meta["openTime"] = schedule.Open.Format("15:04")
-	}
-	if !schedule.Close.IsZero() {
-		meta["closeTime"] = schedule.Close.Format("15:04")
-	}
-	if schedule.HasBothTimes() {
-		meta["openDurationMinutes"] = strconv.Itoa(int(schedule.Duration().Minutes()))
-	}
-	if restaurant.Subscription > 0 {
-		meta["subscriptionId"] = strconv.Itoa(restaurant.Subscription)
-	}
-	if len(restaurant.DaysOpen) > 0 {
-		names := make([]string, 0, len(restaurant.DaysOpen))
-		for _, day := range restaurant.DaysOpen {
-			if trimmed := strings.TrimSpace(string(day)); trimmed != "" {
-				names = append(names, trimmed)
-			}
-		}
-		if len(names) > 0 {
-			meta["daysOpen"] = strings.Join(names, ",")
-		}
-	}
-	return meta
-}
-
-func tableListMetadata(list *tables.TableList) domain.Metadata {
-	if list == nil || len(list.Items) == 0 {
-		return nil
-	}
-	summary := struct {
-		available int
-		reserved  int
-		seated    int
-		blocked   int
-		cleaning  int
-	}{}
-	for _, table := range list.Items {
-		switch table.State {
-		case tables.TableStateAvailable:
-			summary.available++
-		case tables.TableStateReserved:
-			summary.reserved++
-		case tables.TableStateSeated:
-			summary.seated++
-		case tables.TableStateBlocked:
-			summary.blocked++
-		case tables.TableStateCleaning:
-			summary.cleaning++
-		}
-	}
-	meta := domain.Metadata{"tablesCount": strconv.Itoa(len(list.Items))}
-	if summary.available > 0 {
-		meta["tablesAvailable"] = strconv.Itoa(summary.available)
-	}
-	if summary.reserved > 0 {
-		meta["tablesReserved"] = strconv.Itoa(summary.reserved)
-	}
-	if summary.seated > 0 {
-		meta["tablesSeated"] = strconv.Itoa(summary.seated)
-	}
-	if summary.blocked > 0 {
-		meta["tablesBlocked"] = strconv.Itoa(summary.blocked)
-	}
-	if summary.cleaning > 0 {
-		meta["tablesCleaning"] = strconv.Itoa(summary.cleaning)
-	}
-	return meta
-}
-
-func tableDetailMetadata(table *tables.Table) domain.Metadata {
-	if table == nil {
-		return nil
-	}
-	meta := domain.Metadata{}
-	if id := strings.TrimSpace(table.ID); id != "" {
-		meta["tableId"] = id
-	}
-	if state := strings.TrimSpace(string(table.State)); state != "" {
-		meta["tableState"] = state
-	}
-	if table.Number > 0 {
-		meta["tableNumber"] = strconv.Itoa(table.Number)
-	}
-	if table.Capacity > 0 {
-		meta["tableCapacity"] = strconv.Itoa(table.Capacity)
-	}
-	return meta
-}
-
-func reservationListMetadata(list *reservations.ReservationList) domain.Metadata {
-	if list == nil || len(list.Items) == 0 {
-		return nil
-	}
-	summary := struct {
-		pending   int
-		confirmed int
-		seated    int
-		completed int
-		cancelled int
-		noShow    int
-	}{}
-	for _, reservation := range list.Items {
-		switch reservation.Status {
-		case reservations.ReservationStatusPending:
-			summary.pending++
-		case reservations.ReservationStatusConfirmed:
-			summary.confirmed++
-		case reservations.ReservationStatusSeated:
-			summary.seated++
-		case reservations.ReservationStatusCompleted:
-			summary.completed++
-		case reservations.ReservationStatusCancelled:
-			summary.cancelled++
-		case reservations.ReservationStatusNoShow:
-			summary.noShow++
-		}
-	}
-	meta := domain.Metadata{"reservationsCount": strconv.Itoa(len(list.Items))}
-	if summary.pending > 0 {
-		meta["reservationsPending"] = strconv.Itoa(summary.pending)
-	}
-	if summary.confirmed > 0 {
-		meta["reservationsConfirmed"] = strconv.Itoa(summary.confirmed)
-	}
-	if summary.seated > 0 {
-		meta["reservationsSeated"] = strconv.Itoa(summary.seated)
-	}
-	if summary.completed > 0 {
-		meta["reservationsCompleted"] = strconv.Itoa(summary.completed)
-	}
-	if summary.cancelled > 0 {
-		meta["reservationsCancelled"] = strconv.Itoa(summary.cancelled)
-	}
-	if summary.noShow > 0 {
-		meta["reservationsNoShow"] = strconv.Itoa(summary.noShow)
-	}
-	return meta
-}
-
-func reservationDetailMetadata(reservation *reservations.Reservation) domain.Metadata {
-	if reservation == nil {
-		return nil
-	}
-	meta := domain.Metadata{}
-	if id := strings.TrimSpace(reservation.ID); id != "" {
-		meta["reservationId"] = id
-	}
-	if status := strings.TrimSpace(string(reservation.Status)); status != "" {
-		meta["reservationStatus"] = status
-	}
-	if reservation.Guests > 0 {
-		meta["reservationGuests"] = strconv.Itoa(reservation.Guests)
-	}
-	if date := strings.TrimSpace(reservation.ReservationDate); date != "" {
-		meta["reservationDate"] = date
-	}
-	if timeStr := strings.TrimSpace(reservation.ReservationTime); timeStr != "" {
-		meta["reservationTime"] = timeStr
-	}
-	if tableID := strings.TrimSpace(reservation.TableID); tableID != "" {
-		meta["reservationTableId"] = tableID
-	}
-	return meta
 }
 
 var _ port.SectionSnapshotFetcher = (*SectionSnapshotHTTPClient)(nil)
