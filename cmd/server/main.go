@@ -84,12 +84,15 @@ func main() {
 	broker.StartKafkaConsumers(ctx, registry, cfg.Kafka.Brokers, cfg.Kafka.GroupID, topics)
 
 	wsHandler := transport.NewWebsocketHandler(hub, connectUC, cfg.Websocket.DefaultEntity, cfg.Websocket.AllowedActions)
+	notificationsHandler := transport.NewNotificationsWebsocketHandler(hub)
 	// Generic entity routes: allow token in path or via query/header fallback
 	e.GET("/ws/:entity/:section/:token", wsHandler)
 	e.GET("/ws/:entity/:section", wsHandler)
 	// Backwards compatible restaurant-specific routes
 	e.GET("/ws/restaurant/:section/:token", wsHandler)
 	e.GET("/ws/restaurant/:section", wsHandler)
+	// Broadcast notifications stream
+	e.GET("/ws/notifications", notificationsHandler)
 
 	go func() {
 		if err := e.Start(":" + cfg.Server.Port); err != nil {

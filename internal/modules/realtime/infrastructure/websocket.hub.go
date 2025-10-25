@@ -25,6 +25,7 @@ type Client struct {
 	commandFn  func(context.Context, *Client, Command)
 	subscribed map[string]struct{}
 	closeOnce  sync.Once
+	receiveAll bool
 }
 
 type Command struct {
@@ -47,6 +48,12 @@ func NewClient(hub *Hub, conn *websocket.Conn, userID, sessionID, sectionID, ent
 		commandFn:  commandFn,
 		subscribed: make(map[string]struct{}),
 	}
+}
+
+// EnableReceiveAll marks the client as a global subscriber that receives every broadcasted message
+// regardless of topic-specific subscriptions.
+func (c *Client) EnableReceiveAll() {
+	c.receiveAll = true
 }
 
 func (c *Client) key() string {
@@ -155,6 +162,7 @@ func (c *Client) handleCommand(cmd Command) {
 type Hub struct {
 	topics  map[string]map[*Client]struct{}
 	clients map[string]*Client
+	global  map[*Client]struct{}
 	mu      sync.RWMutex
 }
 
@@ -162,6 +170,7 @@ func NewHub() *Hub {
 	return &Hub{
 		topics:  make(map[string]map[*Client]struct{}),
 		clients: make(map[string]*Client),
+		global:  make(map[*Client]struct{}),
 	}
 }
 
@@ -217,23 +226,34 @@ func (h *Hub) detachLocked(c *Client) {
 		}
 	}
 	delete(h.clients, c.key())
+	if c.receiveAll {
+		delete(h.global, c)
+	}
 	c.close()
 	slog.Info("ws client detached", slog.String("userId", c.userID), slog.String("sessionId", c.sessionID), slog.String("sectionId", c.sectionID))
 }
 
 func (h *Hub) Broadcast(_ context.Context, msg *domain.Message) {
-	h.mu.RLock()
-	clientsMap := h.topics[msg.Topic]
-	clients := make([]*Client, 0, len(clientsMap))
-	for c := range clientsMap {
-		clients = append(clients, c)
-	}
 	data, err := json.Marshal(msg)
-	h.mu.RUnlock()
 	if err != nil {
 		slog.Error("broadcast marshal error", slog.Any("error", err))
 		return
 	}
+	h.mu.RLock()
+	clientsMap := h.topics[msg.Topic]
+	clients := make([]*Client, 0, len(clientsMap)+len(h.global))
+	seen := make(map[*Client]struct{}, len(clientsMap)+len(h.global))
+	for c := range clientsMap {
+		clients = append(clients, c)
+		seen[c] = struct{}{}
+	}
+	for c := range h.global {
+		if _, ok := seen[c]; ok {
+			continue
+		}
+		clients = append(clients, c)
+	}
+	h.mu.RUnlock()
 
 	targetUser := ""
 	targetSession := ""
@@ -271,4 +291,14 @@ func (h *Hub) AttachClient(c *Client, topics []string) {
 		h.subscribe(c, topic)
 	}
 	slog.Info("ws client attached", slog.String("userId", c.userID), slog.String("sessionId", c.sessionID), slog.String("sectionId", c.sectionID), slog.Any("topics", topics))
+}
+
+// AttachClientToAll registers the client as a global subscriber receiving every broadcasted message.
+func (h *Hub) AttachClientToAll(c *Client) {
+	c.EnableReceiveAll()
+	h.registerClient(c)
+	h.mu.Lock()
+	h.global[c] = struct{}{}
+	h.mu.Unlock()
+	slog.Info("ws client attached to all topics", slog.String("userId", c.userID), slog.String("sessionId", c.sessionID))
 }
