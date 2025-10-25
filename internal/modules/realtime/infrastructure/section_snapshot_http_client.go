@@ -67,14 +67,7 @@ func (c *SectionSnapshotHTTPClient) FetchEntityList(ctx context.Context, token, 
 		defer cancel()
 	}
 
-	snapshot, err := c.performListRequest(ctx, token, endpoint.listPath, sectionID, query)
-	if err != nil {
-		return nil, err
-	}
-	if meta := domain.ListMetadataFor(entity, snapshot.Payload); len(meta) > 0 {
-		snapshot.MergeListMetadata(meta)
-	}
-	return snapshot, nil
+	return c.performListRequest(ctx, token, endpoint.listPath, sectionID, query)
 }
 
 func (c *SectionSnapshotHTTPClient) FetchEntityDetail(ctx context.Context, token, entity, resourceID string) (*domain.SectionSnapshot, error) {
@@ -97,17 +90,7 @@ func (c *SectionSnapshotHTTPClient) FetchEntityDetail(ctx context.Context, token
 		defer cancel()
 	}
 
-	snapshot, err := c.performDetailRequest(ctx, token, endpoint.detailPath, resource)
-	if err != nil {
-		return nil, err
-	}
-	if meta := domain.DetailMetadataFor(entity, snapshot.Payload); len(meta) > 0 {
-		snapshot.MergeDetailMetadata(meta)
-	}
-	if listMeta := domain.ListMetadataFor(entity, snapshot.Payload); len(listMeta) > 0 {
-		snapshot.MergeListMetadata(listMeta)
-	}
-	return snapshot, nil
+	return c.performDetailRequest(ctx, token, endpoint.detailPath, resource)
 }
 
 func (c *SectionSnapshotHTTPClient) performListRequest(ctx context.Context, token, basePath, sectionID string, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
