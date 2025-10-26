@@ -5,7 +5,7 @@ Esta guía documenta al detalle cómo se publican y consumen los eventos del gat
 ## Visión general
 
 - Ubicación del módulo: `internal/modules/realtime/*`.
-- Entrada única: `GET /ws/:entity/:section/:token?` (token por parámetro, query o header `Authorization: Bearer`).
+- Entradas WebSocket: `GET /ws/:entity/:section/:token?` (token por parámetro, query o header `Authorization: Bearer`) y `GET /ws/analytics/:scope/:entity` (token solo por header; scope `public`, `restaurant`, `admin`).
 - El hub suscribe automáticamente a todos los clientes a un conjunto de tópicos base y a los extra configurados vía `WS_ALLOWED_ACTIONS`.
 - Las instantáneas provienen de la API REST documentada en Swagger, mientras que las actualizaciones en vivo llegan desde Kafka (ver `docs/kafka-guide.md`).
 
