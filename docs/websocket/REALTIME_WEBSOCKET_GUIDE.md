@@ -90,7 +90,26 @@ Environment variables consumed via `internal/config/config.go`:
 
 - `WS_DEFAULT_ENTITY` – Fallback entity when clients use `/ws/section/:id` (defaults to `restaurants`).
 - `WS_ALLOWED_ACTIONS` – Comma-separated list of action topics appended to base topics.
-- `WS_ENTITY_TOPICS` – Mapping `entity:topicA|topicB` used to subscribe Kafka consumers.
+- `WS_ENTITY_TOPICS` – Mapping `entity:topicA|topicB` used to subscribe Kafka consumers. When overriding, mirror the default catalog so analytics refresh stays in sync:
+
+```
+WS_ENTITY_TOPICS=reviews:mesa-ya.reviews.created|mesa-ya.reviews.updated|mesa-ya.reviews.deleted,
+restaurants:mesa-ya.restaurants.created|mesa-ya.restaurants.updated|mesa-ya.restaurants.deleted,
+sections:mesa-ya.sections.created|mesa-ya.sections.updated|mesa-ya.sections.deleted,
+tables:mesa-ya.tables.created|mesa-ya.tables.updated|mesa-ya.tables.deleted,
+objects:mesa-ya.objects.created|mesa-ya.objects.updated|mesa-ya.objects.deleted,
+section-objects:mesa-ya.section-objects.created|mesa-ya.section-objects.updated|mesa-ya.section-objects.deleted,
+menus:mesa-ya.menus.created|mesa-ya.menus.updated|mesa-ya.menus.deleted,
+dishes:mesa-ya.dishes.created|mesa-ya.dishes.updated|mesa-ya.dishes.deleted,
+images:mesa-ya.images.created|mesa-ya.images.updated|mesa-ya.images.deleted,
+reservations:mesa-ya.reservations.created|mesa-ya.reservations.updated|mesa-ya.reservations.deleted,
+payments:mesa-ya.payments.created|mesa-ya.payments.updated|mesa-ya.payments.deleted,
+subscriptions:mesa-ya.subscriptions.created|mesa-ya.subscriptions.updated|mesa-ya.subscriptions.deleted,
+subscription-plans:mesa-ya.subscription-plans.created|mesa-ya.subscription-plans.updated|mesa-ya.subscription-plans.deleted,
+auth-users:mesa-ya.auth.user-signed-up|mesa-ya.auth.user-logged-in|mesa-ya.auth.user-roles-updated|mesa-ya.auth.role-permissions-updated
+```
+
+- `REST_BASE_URL`, `REST_TIMEOUT` – Upstream REST service location for snapshots.
 - `REST_BASE_URL`, `REST_TIMEOUT` – Upstream REST service location for snapshots.
 - `JWT_SECRET` – Required to validate tokens locally.
 
