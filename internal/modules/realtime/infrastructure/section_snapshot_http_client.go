@@ -7,7 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"path"
+	"net/url"
 	"strings"
 	"time"
 
@@ -22,26 +22,103 @@ type SectionSnapshotHTTPClient struct {
 	timeout time.Duration
 }
 
+type pathBuilder func(string) (string, error)
+
 type entityEndpoint struct {
-	listPath   string
-	detailPath string
+	listPathBuilder   pathBuilder
+	detailPathBuilder pathBuilder
+	sectionQueryKey   string
 }
 
 var entityEndpoints = map[string]entityEndpoint{
-	"restaurants":        {listPath: "/api/v1/restaurant", detailPath: "/api/v1/restaurant"},
-	"tables":             {listPath: "/api/v1/table", detailPath: "/api/v1/table"},
-	"reservations":       {listPath: "/api/v1/reservations", detailPath: "/api/v1/reservations"},
-	"reviews":            {listPath: "/api/v1/review", detailPath: "/api/v1/review"},
-	"sections":           {listPath: "/api/v1/section", detailPath: "/api/v1/section"},
-	"objects":            {listPath: "/api/v1/object", detailPath: "/api/v1/object"},
-	"menus":              {listPath: "/api/v1/menus", detailPath: "/api/v1/menus"},
-	"dishes":             {listPath: "/api/v1/dishes", detailPath: "/api/v1/dishes"},
-	"images":             {listPath: "/api/v1/image", detailPath: "/api/v1/image"},
-	"section-objects":    {listPath: "/api/v1/section-object", detailPath: "/api/v1/section-object"},
-	"payments":           {listPath: "/api/v1/payments", detailPath: "/api/v1/payments"},
-	"subscriptions":      {listPath: "/api/v1/subscriptions", detailPath: "/api/v1/subscriptions"},
-	"subscription-plans": {listPath: "/api/v1/subscription-plans", detailPath: "/api/v1/subscription-plans"},
-	"auth-users":         {listPath: "/api/v1/auth/admin/users", detailPath: "/api/v1/auth/admin/users"},
+	"restaurants": {
+		listPathBuilder:   staticPathBuilder("/api/v1/public/restaurant"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/public/restaurant"),
+	},
+	"tables": {
+		listPathBuilder:   requiredValuePathBuilder("/api/v1/public/table/section/%s"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/public/table"),
+	},
+	"reservations": {
+		listPathBuilder:   requiredValuePathBuilder("/api/v1/public/reservations/restaurant/%s"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/public/reservations"),
+	},
+	"reviews": {
+		listPathBuilder:   requiredValuePathBuilder("/api/v1/public/review/restaurant/%s"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/public/review"),
+	},
+	"sections": {
+		listPathBuilder:   requiredValuePathBuilder("/api/v1/public/section/restaurant/%s"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/public/section"),
+	},
+	"objects": {
+		listPathBuilder:   staticPathBuilder("/api/v1/public/object"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/public/object"),
+	},
+	"menus": {
+		listPathBuilder:   staticPathBuilder("/api/v1/public/menus"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/public/menus"),
+	},
+	"dishes": {
+		listPathBuilder:   staticPathBuilder("/api/v1/public/dishes"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/public/dishes"),
+	},
+	"images": {
+		listPathBuilder:   staticPathBuilder("/api/v1/image"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/image"),
+	},
+	"section-objects": {
+		listPathBuilder:   staticPathBuilder("/api/v1/admin/section-objects"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/admin/section-objects"),
+	},
+	"payments": {
+		listPathBuilder:   requiredValuePathBuilder("/api/v1/restaurant/payments/restaurant/%s"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/restaurant/payments"),
+	},
+	"subscriptions": {
+		listPathBuilder:   requiredValuePathBuilder("/api/v1/restaurant/subscriptions/restaurant/%s"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/admin/subscriptions"),
+	},
+	"subscription-plans": {
+		listPathBuilder:   staticPathBuilder("/api/v1/public/subscription-plans"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/public/subscription-plans"),
+	},
+	"auth-users": {
+		listPathBuilder:   staticPathBuilder("/api/v1/public/users"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/public/users"),
+	},
+}
+
+func staticPathBuilder(path string) pathBuilder {
+	trimmed := strings.TrimSpace(path)
+	return func(string) (string, error) {
+		if trimmed == "" {
+			return "", fmt.Errorf("missing path configuration")
+		}
+		return trimmed, nil
+	}
+}
+
+func requiredValuePathBuilder(format string) pathBuilder {
+	trimmed := strings.TrimSpace(format)
+	return func(value string) (string, error) {
+		identifier := strings.TrimSpace(value)
+		if identifier == "" {
+			return "", port.ErrSnapshotNotFound
+		}
+		return fmt.Sprintf(trimmed, url.PathEscape(identifier)), nil
+	}
+}
+
+func resourcePathBuilder(base string) pathBuilder {
+	trimmed := strings.TrimSpace(base)
+	return func(value string) (string, error) {
+		identifier := strings.TrimSpace(value)
+		if identifier == "" {
+			return "", port.ErrSnapshotNotFound
+		}
+		return strings.TrimRight(trimmed, "/") + "/" + url.PathEscape(identifier), nil
+	}
 }
 
 func NewSectionSnapshotHTTPClient(baseURL string, timeout time.Duration, client *http.Client) *SectionSnapshotHTTPClient {
@@ -50,7 +127,7 @@ func NewSectionSnapshotHTTPClient(baseURL string, timeout time.Duration, client 
 
 func (c *SectionSnapshotHTTPClient) FetchEntityList(ctx context.Context, token, entity, sectionID string, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
 	endpoint, ok := entityEndpoints[strings.ToLower(strings.TrimSpace(entity))]
-	if !ok || endpoint.listPath == "" {
+	if !ok || endpoint.listPathBuilder == nil {
 		slog.Warn("snapshot list entity unsupported", slog.String("entity", entity))
 		return nil, port.ErrSnapshotUnsupported
 	}
@@ -67,12 +144,23 @@ func (c *SectionSnapshotHTTPClient) FetchEntityList(ctx context.Context, token, 
 		defer cancel()
 	}
 
-	return c.performListRequest(ctx, token, endpoint.listPath, sectionID, query)
+	listPath, err := endpoint.listPathBuilder(sectionID)
+	if err != nil {
+		slog.Warn("snapshot list path build failed", slog.String("entity", entity), slog.String("sectionId", sectionID), slog.Any("error", err))
+		return nil, err
+	}
+
+	extraQuery := map[string]string{}
+	if key := strings.TrimSpace(endpoint.sectionQueryKey); key != "" {
+		extraQuery[key] = sectionID
+	}
+
+	return c.performListRequest(ctx, token, listPath, sectionID, query, extraQuery)
 }
 
 func (c *SectionSnapshotHTTPClient) FetchEntityDetail(ctx context.Context, token, entity, resourceID string) (*domain.SectionSnapshot, error) {
 	endpoint, ok := entityEndpoints[strings.ToLower(strings.TrimSpace(entity))]
-	if !ok || endpoint.detailPath == "" {
+	if !ok || endpoint.detailPathBuilder == nil {
 		slog.Warn("snapshot detail entity unsupported", slog.String("entity", entity))
 		return nil, port.ErrSnapshotUnsupported
 	}
@@ -90,13 +178,19 @@ func (c *SectionSnapshotHTTPClient) FetchEntityDetail(ctx context.Context, token
 		defer cancel()
 	}
 
-	return c.performDetailRequest(ctx, token, endpoint.detailPath, resource)
+	detailPath, err := endpoint.detailPathBuilder(resource)
+	if err != nil {
+		slog.Warn("snapshot detail path build failed", slog.String("entity", entity), slog.String("resourceId", resource), slog.Any("error", err))
+		return nil, err
+	}
+
+	return c.performDetailRequest(ctx, token, detailPath)
 }
 
-func (c *SectionSnapshotHTTPClient) performListRequest(ctx context.Context, token, basePath, sectionID string, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
-	req, err := c.rest.NewRequest(ctx, http.MethodGet, basePath, nil)
+func (c *SectionSnapshotHTTPClient) performListRequest(ctx context.Context, token, path, sectionID string, query domain.PagedQuery, extras map[string]string) (*domain.SectionSnapshot, error) {
+	req, err := c.rest.NewRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
-		slog.Error("snapshot request build failed", slog.String("sectionId", sectionID), slog.String("path", basePath), slog.Any("error", err))
+		slog.Error("snapshot request build failed", slog.String("sectionId", sectionID), slog.String("path", path), slog.Any("error", err))
 		return nil, err
 	}
 
@@ -105,12 +199,21 @@ func (c *SectionSnapshotHTTPClient) performListRequest(ctx context.Context, toke
 		req.Header.Set("Authorization", "Bearer "+trimmed)
 	}
 
-	req.URL.RawQuery = query.ToURLValues(sectionID).Encode()
+	values := query.ToURLValues(sectionID)
+	for key, value := range extras {
+		trimmedKey := strings.TrimSpace(key)
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedKey == "" || trimmedValue == "" {
+			continue
+		}
+		values.Set(trimmedKey, trimmedValue)
+	}
+	req.URL.RawQuery = values.Encode()
 	slog.Debug("snapshot request", slog.String("url", req.URL.String()))
 
 	res, err := c.rest.Do(req)
 	if err != nil {
-		slog.Error("snapshot request error", slog.String("sectionId", sectionID), slog.String("path", basePath), slog.Any("error", err))
+		slog.Error("snapshot request error", slog.String("sectionId", sectionID), slog.String("path", path), slog.Any("error", err))
 		return nil, fmt.Errorf("snapshot request failed: %w", err)
 	}
 	defer res.Body.Close()
@@ -131,11 +234,10 @@ func (c *SectionSnapshotHTTPClient) performListRequest(ctx context.Context, toke
 	return decodeSectionSnapshot(res.Body)
 }
 
-func (c *SectionSnapshotHTTPClient) performDetailRequest(ctx context.Context, token, basePath, resource string) (*domain.SectionSnapshot, error) {
-	endpoint := path.Join(basePath, resource)
+func (c *SectionSnapshotHTTPClient) performDetailRequest(ctx context.Context, token, endpoint string) (*domain.SectionSnapshot, error) {
 	req, err := c.rest.NewRequest(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		slog.Error("snapshot detail request build failed", slog.String("resourceId", resource), slog.String("path", basePath), slog.Any("error", err))
+		slog.Error("snapshot detail request build failed", slog.String("path", endpoint), slog.Any("error", err))
 		return nil, err
 	}
 
@@ -148,7 +250,7 @@ func (c *SectionSnapshotHTTPClient) performDetailRequest(ctx context.Context, to
 
 	res, err := c.rest.Do(req)
 	if err != nil {
-		slog.Error("snapshot detail request error", slog.String("resourceId", resource), slog.String("path", basePath), slog.Any("error", err))
+		slog.Error("snapshot detail request error", slog.String("path", endpoint), slog.Any("error", err))
 		return nil, fmt.Errorf("snapshot request failed: %w", err)
 	}
 	defer res.Body.Close()
