@@ -22,6 +22,30 @@ Para cualquier entidad registrada, el cliente queda suscrito a los tópicos:
 
 Extras opcionales (`{entity}.{action}`) se leen de `WS_ALLOWED_ACTIONS` (default: `created,updated,deleted,snapshot`). Estos tópicos reciben eventos generados por el broadcaster a partir de Kafka y comparten contratos con los tópicos homólogos descritos en `docs/kafka-guide.md`.
 
+### Tópicos de analytics
+
+Los dashboards de métricas usan entidades virtuales prefijadas con `analytics-<scope>-<entity>` y consumen snapshots directos del REST de analytics.
+
+| Scope       | Entidad (REST)         | WebSocket (`/ws/analytics/...`)             | Topic base                                  | Token requerido | Parámetros comunes                |
+| ----------- | ---------------------- | ------------------------------------------- | ------------------------------------------- | --------------- | ---------------------------------- |
+| `public`    | `users`                | `/ws/analytics/public/users`                | `analytics-public-users.snapshot`           | No              | `startDate`                       |
+| `public`    | `dishes`               | `/ws/analytics/public/dishes`               | `analytics-public-dishes.snapshot`          | No              | `startDate`                       |
+| `public`    | `menus`                | `/ws/analytics/public/menus`                | `analytics-public-menus.snapshot`           | No              | `startDate`                       |
+| `restaurant`| `users`                | `/ws/analytics/restaurant/users`            | `analytics-restaurant-users.snapshot`       | Sí              | `restaurantId` (obligatorio), `startDate` |
+| `admin`     | `auth`                 | `/ws/analytics/admin/auth`                  | `analytics-admin-auth.snapshot`             | Sí              | `startDate`                       |
+| `admin`     | `restaurants`          | `/ws/analytics/admin/restaurants`           | `analytics-admin-restaurants.snapshot`      | Sí              | `startDate`                       |
+| `admin`     | `sections`             | `/ws/analytics/admin/sections`              | `analytics-admin-sections.snapshot`         | Sí              | `restaurantId`, `startDate`       |
+| `admin`     | `tables`               | `/ws/analytics/admin/tables`                | `analytics-admin-tables.snapshot`           | Sí              | `sectionId`, `restaurantId`, `startDate` |
+| `admin`     | `images`               | `/ws/analytics/admin/images`                | `analytics-admin-images.snapshot`           | Sí              | `startDate`                       |
+| `admin`     | `objects`              | `/ws/analytics/admin/objects`               | `analytics-admin-objects.snapshot`          | Sí              | `startDate`                       |
+| `admin`     | `subscriptions`        | `/ws/analytics/admin/subscriptions`         | `analytics-admin-subscriptions.snapshot`    | Sí              | `startDate`                       |
+| `admin`     | `subscription-plans`   | `/ws/analytics/admin/subscription-plans`    | `analytics-admin-subscription-plans.snapshot` | Sí            | `startDate`                       |
+| `admin`     | `reservations`         | `/ws/analytics/admin/reservations`          | `analytics-admin-reservations.snapshot`     | Sí              | `restaurantId`, `startDate`       |
+| `admin`     | `reviews`              | `/ws/analytics/admin/reviews`               | `analytics-admin-reviews.snapshot`          | Sí              | `restaurantId`, `startDate`       |
+| `admin`     | `payments`             | `/ws/analytics/admin/payments`              | `analytics-admin-payments.snapshot`         | Sí              | `restaurantId`, `startDate`       |
+
+Cada websocket de analytics también publica errores en `{analytics-<scope>-<entity>}.error` y acepta comandos `refresh`/`fetch` con payload `{ "identifier": "...", "query": { ... } }` para actualizar filtros dinámicamente.
+
 ### Mensaje estándar
 
 Todos los envíos reutilizan `domain.Message`:

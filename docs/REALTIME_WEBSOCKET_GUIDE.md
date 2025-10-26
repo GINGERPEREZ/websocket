@@ -38,11 +38,11 @@ Analytics dashboards now have dedicated WebSockets under `/ws/analytics/:scope/:
 - `scope` supports `public`, `restaurant`, and `admin`. Aliases such as `auth`, `rest`, `owner`, or singular nouns are normalized automatically.
 - `entity` accepts REST analytics names (e.g. `users`, `dishes`, `menus`, `restaurants`, `sections`, `tables`, `images`, `objects`, `subscriptions`, `subscription-plans`, `reservations`, `reviews`, `payments`, `auth`).
 - Authentication:
-   - `public` scope works without a token, but accepts `Authorization: Bearer <token>` when available.
-   - `restaurant` and `admin` scopes require a valid JWT in the `Authorization` header.
+  - `public` scope works without a token, but accepts `Authorization: Bearer <token>` when available.
+  - `restaurant` and `admin` scopes require a valid JWT in the `Authorization` header.
 - Parameters:
-   - Path identifiers are supplied as query parameters (e.g. `?restaurantId=...` for restaurant analytics).
-   - Optional filters like `startDate`, `sectionId`, and `restaurantId` map directly to the REST analytics endpoints.
+  - Path identifiers are supplied as query parameters (e.g. `?restaurantId=...` for restaurant analytics).
+  - Optional filters like `startDate`, `sectionId`, and `restaurantId` map directly to the REST analytics endpoints.
 - Topics: clients automatically subscribe to `{analytics-<scope>-<entity>}.snapshot` and `{analytics-<scope>-<entity>}.error`.
 - Commands: send `{"action":"refresh"}` or `{"action":"fetch","query":{"startDate":"2024-01-01"}}` to refresh data. Empty values remove filters.
 
