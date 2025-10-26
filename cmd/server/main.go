@@ -63,7 +63,9 @@ func main() {
 	// JWT validator used to validate tokens issued by the Nest auth service
 	validator := auth.NewJWTValidator(cfg.Security.JWTSecret)
 	snapshotFetcher := infrastructure.NewSectionSnapshotHTTPClient(cfg.REST.BaseURL, cfg.REST.Timeout, nil)
+	analyticsFetcher := infrastructure.NewAnalyticsHTTPClient(cfg.REST.BaseURL, cfg.REST.Timeout, nil)
 	connectUC := usecase.NewConnectSectionUseCase(validator, snapshotFetcher)
+	analyticsUC := usecase.NewAnalyticsUseCase(validator, analyticsFetcher)
 
 	// Registrar handlers de tópicos (cada feature)
 	registry.Register(&handler.UserCreatedHandler{UseCase: broadcastUC})
@@ -85,6 +87,7 @@ func main() {
 
 	wsHandler := transport.NewWebsocketHandler(hub, connectUC, cfg.Websocket.DefaultEntity, cfg.Websocket.AllowedActions)
 	notificationsHandler := transport.NewNotificationsWebsocketHandler(hub)
+	analyticsHandler := transport.NewAnalyticsWebsocketHandler(hub, analyticsUC)
 	// Generic entity routes: allow token in path or via query/header fallback
 	e.GET("/ws/:entity/:section/:token", wsHandler)
 	e.GET("/ws/:entity/:section", wsHandler)
@@ -93,6 +96,8 @@ func main() {
 	e.GET("/ws/restaurant/:section", wsHandler)
 	// Broadcast notifications stream
 	e.GET("/ws/notifications", notificationsHandler)
+	// Analytics websocket endpoints
+	e.GET("/ws/analytics/:scope/:entity", analyticsHandler)
 
 	go func() {
 		if err := e.Start(":" + cfg.Server.Port); err != nil {
