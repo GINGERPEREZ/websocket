@@ -1,14 +1,14 @@
 asyncapi: "2.6.0"
 info:
   title: Mesa Ya Realtime WebSocket API
-  version: 1.1.0
+  version: 1.2.0
   description: |
-    Realtime channel that complements the REST API documented in swagger.json.
+    Realtime channels that complement the REST API documented in swagger.json.
     Clients connect with a JWT issued by the Nest auth service and can request
     list/detail snapshots or receive change events per entity. The contract now
-    spans restaurants, tables, reservations, reviews, sections, objects, Section
+    spans restaurants, tables, reservations, reviews, sections, objects, section
     objects, menus, dishes, images, payments, subscriptions, subscription plans,
-    and auth users.
+    auth users, and analytics dashboards for public, restaurant, and admin scopes.
 servers:
   local-dev:
     url: ws://localhost:8080/ws/{entity}/{section}/{token}
@@ -26,6 +26,17 @@ servers:
           JWT bearer token created by the Nest auth service. It may also be provided
           through the Authorization header after the connection is established.
         default: example.jwt.token
+  analytics-dev:
+    url: ws://localhost:8080/ws/analytics/{scope}/{entity}
+    protocol: ws
+    description: Local analytics endpoint (scopes: public, restaurant, admin)
+    variables:
+      scope:
+        description: Analytics scope (`public`, `restaurant`, or `admin`).
+        default: public
+      entity:
+        description: Analytics entity (e.g. users, restaurants, payments).
+        default: users
 channels:
   system.connected:
     subscribe:
@@ -247,6 +258,39 @@ channels:
       summary: Transport or validation errors for auth user commands.
       message:
         $ref: "#/components/messages/EntityError"
+  "analytics.{scope}.{entity}.snapshot":
+    parameters:
+      scope:
+        description: Analytics scope (`public`, `restaurant`, `admin`).
+        schema:
+          type: string
+      entity:
+        description: Analytics entity (e.g. users, restaurants, payments).
+        schema:
+          type: string
+    subscribe:
+      summary: Snapshot stream for analytics dashboards.
+      message:
+        $ref: "#/components/messages/AnalyticsSnapshot"
+  "analytics.{scope}.{entity}.error":
+    parameters:
+      scope:
+        description: Analytics scope (`public`, `restaurant`, `admin`).
+        schema:
+          type: string
+      entity:
+        description: Analytics entity (e.g. users, restaurants, payments).
+        schema:
+          type: string
+    subscribe:
+      summary: Errors produced while refreshing analytics requests.
+      message:
+        $ref: "#/components/messages/AnalyticsError"
+  command.analytics.control:
+    publish:
+      summary: Refresh or filter analytics snapshots.
+      message:
+        $ref: "#/components/messages/AnalyticsCommand"
   command.list_restaurants:
     publish:
       summary: Request a paginated list of restaurants.
@@ -434,6 +478,17 @@ components:
         id:
           type: string
           description: Resource identifier (UUID, slug, or internal code).
+    AnalyticsCommandPayload:
+      type: object
+      properties:
+        identifier:
+          type: string
+          description: Optional identifier required by some analytics endpoints (e.g. restaurantId).
+        query:
+          type: object
+          additionalProperties:
+            type: string
+          description: Optional query filters (startDate, sectionId, restaurantId, etc.).
   messages:
     SystemConnected:
       name: system.connected
@@ -455,10 +510,12 @@ components:
                 type: string
               sectionId:
                 type: string
+              scope:
+                type: string
+              analyticsKey:
+                type: string
             required:
-              - userId
               - sessionId
-              - sectionId
           data:
             type: object
             properties:
@@ -473,6 +530,18 @@ components:
               roles:
                 type: array
                 items:
+                  type: string
+              mode:
+                type: string
+              topics:
+                type: array
+                items:
+                  type: string
+              identifier:
+                type: string
+              query:
+                type: object
+                additionalProperties:
                   type: string
           timestamp:
             type: string
@@ -615,7 +684,6 @@ components:
               reason:
                 type: string
             required:
-              - sectionId
               - action
           data:
             type: object
@@ -633,6 +701,108 @@ components:
           - metadata
           - data
           - timestamp
+    AnalyticsSnapshot:
+      name: analytics.snapshot
+      payload:
+        type: object
+        properties:
+          topic:
+            type: string
+            pattern: '^analytics-[a-z-]+-[a-z-]+\.snapshot$'
+          entity:
+            type: string
+            pattern: '^analytics-[a-z-]+-[a-z-]+$'
+          action:
+            const: snapshot
+          resourceId:
+            type: string
+            description: Optional identifier echoed back from the request.
+          metadata:
+            type: object
+            properties:
+              scope:
+                type: string
+              identifier:
+                type: string
+              query:
+                type: object
+                additionalProperties:
+                  type: string
+            additionalProperties:
+              type: string
+          data:
+            type: object
+            description: Copy of the REST payload returned by `/api/v1/.../analytics`.
+          timestamp:
+            type: string
+            format: date-time
+        required:
+          - topic
+          - entity
+          - action
+          - metadata
+          - data
+          - timestamp
+    AnalyticsError:
+      name: analytics.error
+      payload:
+        type: object
+        properties:
+          topic:
+            type: string
+            pattern: '^analytics-[a-z-]+-[a-z-]+\.error$'
+          entity:
+            type: string
+            pattern: '^analytics-[a-z-]+-[a-z-]+$'
+          action:
+            const: error
+          resourceId:
+            type: string
+          metadata:
+            type: object
+            properties:
+              sectionId:
+                type: string
+              scope:
+                type: string
+              identifier:
+                type: string
+              action:
+                type: string
+              reason:
+                type: string
+            additionalProperties:
+              type: string
+          data:
+            type: object
+            properties:
+              error:
+                type: string
+          timestamp:
+            type: string
+            format: date-time
+        required:
+          - topic
+          - entity
+          - action
+          - metadata
+          - data
+          - timestamp
+    AnalyticsCommand:
+      name: analytics.command
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum:
+              - refresh
+              - fetch
+              - query
+          payload:
+            $ref: "#/components/schemas/AnalyticsCommandPayload"
+        required:
+          - action
     ListCommand:
       name: command.list
       payload:
