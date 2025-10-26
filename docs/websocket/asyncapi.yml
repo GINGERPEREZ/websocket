@@ -720,6 +720,8 @@ components:
           metadata:
             type: object
             properties:
+              sessionId:
+                type: string
               scope:
                 type: string
               identifier:
@@ -761,6 +763,8 @@ components:
           metadata:
             type: object
             properties:
+              sessionId:
+                type: string
               sectionId:
                 type: string
               scope:

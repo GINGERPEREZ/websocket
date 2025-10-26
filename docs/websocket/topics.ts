@@ -47,9 +47,9 @@ const ANALYTICS_TOPICS = {
 } as const;
 
 const ANALYTICS_COMMANDS = {
-  refresh: "command.analytics.refresh" as const,
-  fetch: "command.analytics.fetch" as const,
-  query: "command.analytics.query" as const,
+  refresh: "refresh" as const,
+  fetch: "fetch" as const,
+  query: "query" as const,
 } as const;
 
 export const WEBSOCKET_TOPICS = {

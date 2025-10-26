@@ -698,9 +698,4 @@ var analyticsDependencies = map[string][]string{
 	"dishes": {
 		"analytics-public-dishes",
 	},
-	"restaurants-public": {
-		"analytics-public-users",
-		"analytics-public-menus",
-		"analytics-public-dishes",
-	},
 }
