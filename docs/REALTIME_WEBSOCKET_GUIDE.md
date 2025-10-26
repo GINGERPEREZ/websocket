@@ -45,6 +45,7 @@ Analytics dashboards now have dedicated WebSockets under `/ws/analytics/:scope/:
   - Optional filters like `startDate`, `sectionId`, and `restaurantId` map directly to the REST analytics endpoints.
 - Topics: clients automatically subscribe to `{analytics-<scope>-<entity>}.snapshot` and `{analytics-<scope>-<entity>}.error`.
 - Commands: send `{"action":"refresh"}` or `{"action":"fetch","query":{"startDate":"2024-01-01"}}` to refresh data. Empty values remove filters.
+- Actualizaciones: los dashboards se actualizan solos cuando llegan eventos Kafka relacionados (mesas, reservas, pagos, usuarios, etc.) gracias a la nueva caché de sesiones del use case. El servidor vuelve a consultar el REST de analytics y envía la respuesta únicamente a las sesiones afectadas.
 
 Example connections:
 

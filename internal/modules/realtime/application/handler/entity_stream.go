@@ -18,9 +18,10 @@ type EntityStreamHandler struct {
 	allowedActions map[string]struct{}
 	broadcastUC    *usecase.BroadcastUseCase
 	connectUC      *usecase.ConnectSectionUseCase
+	analyticsUC    *usecase.AnalyticsUseCase
 }
 
-func NewEntityStreamHandler(entity, kafkaTopic string, allowedActions []string, broadcastUC *usecase.BroadcastUseCase, connectUC *usecase.ConnectSectionUseCase) *EntityStreamHandler {
+func NewEntityStreamHandler(entity, kafkaTopic string, allowedActions []string, broadcastUC *usecase.BroadcastUseCase, connectUC *usecase.ConnectSectionUseCase, analyticsUC *usecase.AnalyticsUseCase) *EntityStreamHandler {
 	actionSet := make(map[string]struct{}, len(allowedActions))
 	for _, a := range allowedActions {
 		if v := strings.TrimSpace(strings.ToLower(a)); v != "" {
@@ -33,6 +34,7 @@ func NewEntityStreamHandler(entity, kafkaTopic string, allowedActions []string, 
 		allowedActions: actionSet,
 		broadcastUC:    broadcastUC,
 		connectUC:      connectUC,
+		analyticsUC:    analyticsUC,
 	}
 }
 
@@ -49,6 +51,7 @@ func (h *EntityStreamHandler) Handle(ctx context.Context, msg *domain.Message) e
 	}
 	h.broadcastUC.Execute(ctx, msg)
 	h.refreshSnapshot(ctx, msg)
+	h.refreshAnalytics(ctx, msg)
 	return nil
 }
 
@@ -77,6 +80,23 @@ func (h *EntityStreamHandler) refreshSnapshot(ctx context.Context, msg *domain.M
 	}
 	slog.Info("entity-stream refresh all sections", slog.String("entity", entityName), slog.String("action", msg.Action))
 	h.connectUC.RefreshAllSections(ctx, entityName, h.broadcastUC)
+}
+
+func (h *EntityStreamHandler) refreshAnalytics(ctx context.Context, msg *domain.Message) {
+	if h.analyticsUC == nil {
+		return
+	}
+	if strings.EqualFold(msg.Action, domain.ActionSnapshot) {
+		return
+	}
+	entityName := h.entity
+	if entityName == "" {
+		entityName = strings.TrimSpace(msg.Entity)
+	}
+	if entityName == "" {
+		return
+	}
+	h.analyticsUC.RefreshByEntity(ctx, entityName, h.broadcastUC)
 }
 
 var _ port.TopicHandler = (*EntityStreamHandler)(nil)

@@ -26,6 +26,8 @@ Extras opcionales (`{entity}.{action}`) se leen de `WS_ALLOWED_ACTIONS` (default
 
 Los dashboards de métricas usan entidades virtuales prefijadas con `analytics-<scope>-<entity>` y consumen snapshots directos del REST de analytics.
 
+Cada dashboard mantiene su propio request (identificador + filtros) y el servidor lo refresca en cuanto llega un evento Kafka relacionado con la entidad de origen. Los mensajes incluyen `metadata.sessionId` para garantizar que solo recibe la sesión que solicitó ese set de filtros.
+
 | Scope        | Entidad (REST)       | WebSocket (`/ws/analytics/...`)          | Topic base                                    | Token requerido | Parámetros comunes                        |
 | ------------ | -------------------- | ---------------------------------------- | --------------------------------------------- | --------------- | ----------------------------------------- |
 | `public`     | `users`              | `/ws/analytics/public/users`             | `analytics-public-users.snapshot`             | No              | `startDate`                               |

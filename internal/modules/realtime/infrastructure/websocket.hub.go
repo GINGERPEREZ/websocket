@@ -26,6 +26,8 @@ type Client struct {
 	subscribed map[string]struct{}
 	closeOnce  sync.Once
 	receiveAll bool
+	closeHooks []func(*Client)
+	hookMu     sync.Mutex
 }
 
 type Command struct {
@@ -68,7 +70,36 @@ func (c *Client) close() {
 	c.closeOnce.Do(func() {
 		close(c.send)
 		_ = c.conn.Close()
+		c.invokeCloseHooks()
 	})
+}
+
+// AddCloseHook registers a callback that will be executed once when the client closes.
+func (c *Client) AddCloseHook(fn func(*Client)) {
+	if fn == nil {
+		return
+	}
+	c.hookMu.Lock()
+	defer c.hookMu.Unlock()
+	c.closeHooks = append(c.closeHooks, fn)
+}
+
+func (c *Client) invokeCloseHooks() {
+	c.hookMu.Lock()
+	hooks := append([]func(*Client){}, c.closeHooks...)
+	c.closeHooks = nil
+	c.hookMu.Unlock()
+
+	for _, hook := range hooks {
+		func(h func(*Client)) {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Warn("ws close hook panic", slog.Any("error", r))
+				}
+			}()
+			h(c)
+		}(hook)
+	}
 }
 
 func (c *Client) SendDomainMessage(msg *domain.Message) {

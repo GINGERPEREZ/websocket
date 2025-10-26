@@ -92,10 +92,14 @@ func NewAnalyticsWebsocketHandler(hub *infrastructure.Hub, analyticsUC *usecase.
 
 		topics := []string{domain.SnapshotTopic(cfg.Entity), domain.ErrorTopic(cfg.Entity)}
 		baseRequest := output.Request.Clone()
-		commandHandler := newAnalyticsCommandHandler(cfg.Key, cfg, analyticsUC, token, &baseRequest)
+		commandHandler := newAnalyticsCommandHandler(cfg.Key, cfg, analyticsUC, token, sessionID, &baseRequest)
 
 		client := infrastructure.NewClient(hub, conn, userID, sessionID, "", cfg.Entity, token, 4, commandHandler)
 		hub.AttachClient(client, topics)
+		analyticsUC.RegisterSession(sessionID, cfg.Key, token, baseRequest)
+		client.AddCloseHook(func(*infrastructure.Client) {
+			analyticsUC.UnregisterSession(sessionID)
+		})
 
 		go client.WritePump()
 		go client.ReadPump()
@@ -148,7 +152,7 @@ func extractBearerToken(r *http.Request) string {
 	return ""
 }
 
-func newAnalyticsCommandHandler(key string, cfg usecase.AnalyticsEndpointConfig, analyticsUC *usecase.AnalyticsUseCase, token string, base *domain.AnalyticsRequest) func(context.Context, *infrastructure.Client, infrastructure.Command) {
+func newAnalyticsCommandHandler(key string, cfg usecase.AnalyticsEndpointConfig, analyticsUC *usecase.AnalyticsUseCase, token, sessionID string, base *domain.AnalyticsRequest) func(context.Context, *infrastructure.Client, infrastructure.Command) {
 	trimmedToken := strings.TrimSpace(token)
 	return func(cmdCtx context.Context, client *infrastructure.Client, cmd infrastructure.Command) {
 		action := strings.ToLower(strings.TrimSpace(cmd.Action))
@@ -172,6 +176,7 @@ func newAnalyticsCommandHandler(key string, cfg usecase.AnalyticsEndpointConfig,
 			}
 
 			*base = updated.Clone()
+			analyticsUC.UpdateSession(sessionID, key, trimmedToken, *base)
 			client.SendDomainMessage(message)
 		default:
 			slog.Debug("analytics command unsupported", slog.String("key", key), slog.String("action", action))

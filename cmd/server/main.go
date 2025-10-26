@@ -71,7 +71,7 @@ func main() {
 	registry.Register(&handler.UserCreatedHandler{UseCase: broadcastUC})
 	for entity, topics := range cfg.Kafka.Topics {
 		for _, topic := range topics {
-			registry.Register(handler.NewEntityStreamHandler(entity, topic, cfg.Websocket.AllowedActions, broadcastUC, connectUC))
+			registry.Register(handler.NewEntityStreamHandler(entity, topic, cfg.Websocket.AllowedActions, broadcastUC, connectUC, analyticsUC))
 		}
 	}
 

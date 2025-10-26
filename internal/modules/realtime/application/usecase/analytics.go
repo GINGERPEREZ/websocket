@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"mesaYaWs/internal/modules/realtime/application/port"
@@ -105,6 +106,8 @@ type AnalyticsUseCase struct {
 	validator auth.TokenValidator
 	fetcher   port.AnalyticsFetcher
 	endpoints map[string]AnalyticsEndpointConfig
+	mu        sync.RWMutex
+	sessions  map[string]*analyticsSessionEntry
 }
 
 // AnalyticsConnectOutput captures the data needed to initialise an analytics websocket session.
@@ -121,6 +124,7 @@ func NewAnalyticsUseCase(validator auth.TokenValidator, fetcher port.AnalyticsFe
 		validator: validator,
 		fetcher:   fetcher,
 		endpoints: defaultAnalyticsEndpoints(),
+		sessions:  make(map[string]*analyticsSessionEntry),
 	}
 }
 
@@ -450,4 +454,253 @@ func defaultAnalyticsEndpoints() map[string]AnalyticsEndpointConfig {
 		registry[entry.Key] = entry
 	}
 	return registry
+}
+
+type analyticsSessionEntry struct {
+	key     string
+	token   string
+	request domain.AnalyticsRequest
+}
+
+// RegisterSession stores the analytics request associated with an active websocket session.
+func (uc *AnalyticsUseCase) RegisterSession(sessionID, key, token string, request domain.AnalyticsRequest) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return
+	}
+	cfg, ok := uc.Endpoint(key)
+	if !ok {
+		return
+	}
+	sanitized := cfg.SanitizeRequest(request).Clone()
+	uc.mu.Lock()
+	uc.sessions[sessionID] = &analyticsSessionEntry{
+		key:     cfg.Key,
+		token:   strings.TrimSpace(token),
+		request: sanitized,
+	}
+	uc.mu.Unlock()
+}
+
+// UpdateSession updates the request/token stored for a websocket session.
+func (uc *AnalyticsUseCase) UpdateSession(sessionID, key, token string, request domain.AnalyticsRequest) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return
+	}
+	cfg, ok := uc.Endpoint(key)
+	if !ok {
+		return
+	}
+	sanitized := cfg.SanitizeRequest(request).Clone()
+	uc.mu.Lock()
+	if entry, ok := uc.sessions[sessionID]; ok {
+		entry.key = cfg.Key
+		entry.token = strings.TrimSpace(token)
+		entry.request = sanitized
+	} else {
+		uc.sessions[sessionID] = &analyticsSessionEntry{
+			key:     cfg.Key,
+			token:   strings.TrimSpace(token),
+			request: sanitized,
+		}
+	}
+	uc.mu.Unlock()
+}
+
+// UnregisterSession removes the stored state for a websocket session.
+func (uc *AnalyticsUseCase) UnregisterSession(sessionID string) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return
+	}
+	uc.mu.Lock()
+	delete(uc.sessions, sessionID)
+	uc.mu.Unlock()
+}
+
+// RefreshByEntity refreshes analytics dashboards that depend on the provided entity changes.
+func (uc *AnalyticsUseCase) RefreshByEntity(ctx context.Context, entity string, broadcaster *BroadcastUseCase) {
+	if broadcaster == nil {
+		return
+	}
+	normalized := strings.ToLower(strings.TrimSpace(entity))
+	if normalized == "" {
+		return
+	}
+	keys := analyticsDependencies[normalized]
+	for _, key := range keys {
+		uc.refreshByKey(ctx, key, broadcaster)
+	}
+}
+
+// RefreshAll refreshes all tracked analytics sessions.
+func (uc *AnalyticsUseCase) RefreshAll(ctx context.Context, broadcaster *BroadcastUseCase) {
+	if broadcaster == nil {
+		return
+	}
+	uc.mu.RLock()
+	snapshot := make(map[string]*analyticsSessionEntry, len(uc.sessions))
+	for sessionID, entry := range uc.sessions {
+		snapshot[sessionID] = &analyticsSessionEntry{
+			key:     entry.key,
+			token:   entry.token,
+			request: entry.request.Clone(),
+		}
+	}
+	uc.mu.RUnlock()
+
+	for sessionID, entry := range snapshot {
+		uc.refreshSession(ctx, sessionID, entry, broadcaster)
+	}
+}
+
+func (uc *AnalyticsUseCase) refreshByKey(ctx context.Context, key string, broadcaster *BroadcastUseCase) {
+	uc.mu.RLock()
+	snapshot := make(map[string]*analyticsSessionEntry)
+	for sessionID, entry := range uc.sessions {
+		if strings.EqualFold(entry.key, key) {
+			snapshot[sessionID] = &analyticsSessionEntry{
+				key:     entry.key,
+				token:   entry.token,
+				request: entry.request.Clone(),
+			}
+		}
+	}
+	uc.mu.RUnlock()
+
+	if len(snapshot) == 0 {
+		return
+	}
+
+	for sessionID, entry := range snapshot {
+		uc.refreshSession(ctx, sessionID, entry, broadcaster)
+	}
+}
+
+func (uc *AnalyticsUseCase) refreshSession(ctx context.Context, sessionID string, entry *analyticsSessionEntry, broadcaster *BroadcastUseCase) {
+	cfg, ok := uc.Endpoint(entry.key)
+	if !ok {
+		return
+	}
+
+	sanitized := cfg.SanitizeRequest(entry.request)
+	path, err := cfg.BuildPath(sanitized.Identifier)
+	if err != nil {
+		slog.Warn("analytics refresh path build failed", slog.String("key", cfg.Key), slog.String("sessionId", sessionID), slog.Any("error", err))
+		return
+	}
+
+	snapshot, err := uc.fetcher.Fetch(ctx, entry.token, path, sanitized.Query)
+	if err != nil {
+		slog.Warn("analytics refresh fetch failed", slog.String("key", cfg.Key), slog.String("sessionId", sessionID), slog.Any("error", err))
+		uc.emitAnalyticsError(ctx, broadcaster, cfg, sessionID, sanitized, err)
+		return
+	}
+
+	message := domain.BuildAnalyticsMessage(cfg.Entity, cfg.Scope, snapshot, sanitized.Clone(), time.Now().UTC())
+	if message == nil {
+		return
+	}
+	if message.Metadata == nil {
+		message.Metadata = map[string]string{}
+	}
+	message.Metadata["sessionId"] = sessionID
+	message.Metadata["analyticsKey"] = cfg.Key
+
+	broadcaster.Execute(ctx, message)
+
+	uc.mu.Lock()
+	if stored, ok := uc.sessions[sessionID]; ok {
+		stored.request = sanitized.Clone()
+		stored.key = cfg.Key
+	}
+	uc.mu.Unlock()
+}
+
+func (uc *AnalyticsUseCase) emitAnalyticsError(ctx context.Context, broadcaster *BroadcastUseCase, cfg AnalyticsEndpointConfig, sessionID string, request domain.AnalyticsRequest, err error) {
+	if broadcaster == nil {
+		return
+	}
+
+	metadata := map[string]string{
+		"scope":        cfg.Scope,
+		"analyticsKey": cfg.Key,
+		"sessionId":    sessionID,
+		"action":       "refresh",
+		"reason":       err.Error(),
+	}
+	if trimmed := strings.TrimSpace(request.Identifier); trimmed != "" {
+		metadata["identifier"] = trimmed
+	}
+
+	message := &domain.Message{
+		Topic:    domain.ErrorTopic(cfg.Entity),
+		Entity:   cfg.Entity,
+		Action:   domain.ActionError,
+		Metadata: metadata,
+		Data: map[string]string{
+			"error": err.Error(),
+		},
+		Timestamp: time.Now().UTC(),
+	}
+	broadcaster.Execute(ctx, message)
+}
+
+var analyticsDependencies = map[string][]string{
+	"restaurants": {
+		"analytics-admin-restaurants",
+		"analytics-admin-sections",
+		"analytics-admin-tables",
+		"analytics-admin-payments",
+	},
+	"sections": {
+		"analytics-admin-sections",
+		"analytics-admin-tables",
+	},
+	"tables": {
+		"analytics-admin-tables",
+		"analytics-admin-payments",
+	},
+	"images": {
+		"analytics-admin-images",
+	},
+	"objects": {
+		"analytics-admin-objects",
+		"analytics-admin-sections",
+	},
+	"subscriptions": {
+		"analytics-admin-subscriptions",
+		"analytics-admin-subscription-plans",
+		"analytics-admin-payments",
+	},
+	"subscription-plans": {
+		"analytics-admin-subscription-plans",
+	},
+	"reservations": {
+		"analytics-admin-reservations",
+		"analytics-restaurant-users",
+	},
+	"reviews": {
+		"analytics-admin-reviews",
+	},
+	"payments": {
+		"analytics-admin-payments",
+	},
+	"auth-users": {
+		"analytics-admin-auth",
+		"analytics-public-users",
+		"analytics-restaurant-users",
+	},
+	"menus": {
+		"analytics-public-menus",
+	},
+	"dishes": {
+		"analytics-public-dishes",
+	},
+	"restaurants-public": {
+		"analytics-public-users",
+		"analytics-public-menus",
+		"analytics-public-dishes",
+	},
 }
