@@ -524,11 +524,14 @@ func (uc *AnalyticsUseCase) RefreshByEntity(ctx context.Context, entity string, 
 	if broadcaster == nil {
 		return
 	}
-	normalized := strings.ToLower(strings.TrimSpace(entity))
-	if normalized == "" {
+	canonical := normalizeAnalyticsDependencyEntity(entity)
+	if canonical == "" {
 		return
 	}
-	keys := analyticsDependencies[normalized]
+	keys := analyticsDependencies[canonical]
+	if len(keys) == 0 {
+		return
+	}
 	for _, key := range keys {
 		uc.refreshByKey(ctx, key, broadcaster)
 	}
@@ -669,6 +672,10 @@ var analyticsDependencies = map[string][]string{
 		"analytics-admin-objects",
 		"analytics-admin-sections",
 	},
+	"section-objects": {
+		"analytics-admin-objects",
+		"analytics-admin-sections",
+	},
 	"subscriptions": {
 		"analytics-admin-subscriptions",
 		"analytics-admin-subscription-plans",
@@ -698,4 +705,44 @@ var analyticsDependencies = map[string][]string{
 	"dishes": {
 		"analytics-public-dishes",
 	},
+}
+
+func normalizeAnalyticsDependencyEntity(raw string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(raw))
+	if trimmed == "" {
+		return ""
+	}
+	replaced := strings.ReplaceAll(trimmed, "_", "-")
+	switch replaced {
+	case "restaurant", "restaurants":
+		return "restaurants"
+	case "section", "sections":
+		return "sections"
+	case "table", "tables":
+		return "tables"
+	case "image", "images":
+		return "images"
+	case "object", "objects":
+		return "objects"
+	case "section-object", "section-objects", "sectionobject", "sectionobjects":
+		return "section-objects"
+	case "subscription", "subscriptions":
+		return "subscriptions"
+	case "subscription-plan", "subscription-plans", "subscriptionplan", "subscriptionplans":
+		return "subscription-plans"
+	case "reservation", "reservations":
+		return "reservations"
+	case "review", "reviews":
+		return "reviews"
+	case "payment", "payments":
+		return "payments"
+	case "auth", "auth-user", "auth-users", "auth_user", "auth_users", "user", "users", "authuser", "authusers":
+		return "auth-users"
+	case "menu", "menus":
+		return "menus"
+	case "dish", "dishes":
+		return "dishes"
+	default:
+		return replaced
+	}
 }
