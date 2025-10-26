@@ -13,3 +13,9 @@ type ListEntityCommand struct {
 type GetEntityCommand struct {
 	ID string `json:"id"`
 }
+
+// AnalyticsCommand represents the payload for requesting analytics data via websocket commands.
+type AnalyticsCommand struct {
+	Identifier string            `json:"identifier,omitempty"`
+	Query      map[string]string `json:"query,omitempty"`
+}
