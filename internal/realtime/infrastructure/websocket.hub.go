@@ -12,6 +12,105 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type Command struct {
+	Action  string          `json:"action"`
+	Topic   string          `json:"topic,omitempty"`
+	Payload json.RawMessage `json:"payload,omitempty"`
+}
+
+func (c Command) actionKey() string {
+	return normalizeAction(c.Action)
+}
+
+type CommandHandler func(ctx context.Context, client *Client, cmd Command)
+
+type CommandProcessor struct {
+	hub             *Hub
+	handlers        map[string]CommandHandler
+	fallback        CommandHandler
+	fallbackTimeout time.Duration
+}
+
+func NewCommandProcessor(hub *Hub, fallback CommandHandler) *CommandProcessor {
+	processor := &CommandProcessor{
+		hub:             hub,
+		handlers:        make(map[string]CommandHandler),
+		fallback:        fallback,
+		fallbackTimeout: 10 * time.Second,
+	}
+	processor.Register("subscribe", processor.handleSubscribe)
+	processor.Register("unsubscribe", processor.handleUnsubscribe)
+	processor.Register("ping", processor.handlePing)
+	return processor
+}
+
+func (p *CommandProcessor) Register(action string, handler CommandHandler) {
+	if handler == nil {
+		return
+	}
+	key := normalizeAction(action)
+	if key == "" {
+		return
+	}
+	p.handlers[key] = handler
+}
+
+func (p *CommandProcessor) Process(client *Client, cmd Command) {
+	if client == nil {
+		return
+	}
+
+	action := cmd.actionKey()
+	if action == "" {
+		return
+	}
+
+	if handler, ok := p.handlers[action]; ok {
+		handler(context.Background(), client, cmd)
+		return
+	}
+
+	if p.fallback == nil {
+		slog.Debug("ws command ignored", slog.String("userId", client.userID), slog.String("sessionId", client.sessionID), slog.String("sectionId", client.sectionID), slog.String("action", action))
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), p.fallbackTimeout)
+	go func() {
+		defer cancel()
+		p.fallback(ctx, client, cmd)
+	}()
+}
+
+func (p *CommandProcessor) handleSubscribe(_ context.Context, client *Client, cmd Command) {
+	topic := strings.TrimSpace(cmd.Topic)
+	if topic == "" {
+		slog.Debug("ws subscribe ignored empty topic", slog.String("userId", client.userID), slog.String("sessionId", client.sessionID), slog.String("sectionId", client.sectionID))
+		return
+	}
+	p.hub.subscribe(client, topic)
+	slog.Debug("ws subscribe", slog.String("userId", client.userID), slog.String("sessionId", client.sessionID), slog.String("sectionId", client.sectionID), slog.String("topic", topic))
+}
+
+func (p *CommandProcessor) handleUnsubscribe(_ context.Context, client *Client, cmd Command) {
+	topic := strings.TrimSpace(cmd.Topic)
+	if topic == "" {
+		return
+	}
+	p.hub.unsubscribe(client, topic)
+	slog.Debug("ws unsubscribe", slog.String("userId", client.userID), slog.String("sessionId", client.sessionID), slog.String("sectionId", client.sectionID), slog.String("topic", topic))
+}
+
+func (p *CommandProcessor) handlePing(_ context.Context, client *Client, _ Command) {
+	ack := domain.Message{
+		Topic:     "system.pong",
+		Entity:    "system",
+		Action:    "pong",
+		Timestamp: time.Now().UTC(),
+	}
+	client.SendDomainMessage(&ack)
+}
+
 type Client struct {
 	hub        *Hub
 	conn       *websocket.Conn
@@ -21,20 +120,14 @@ type Client struct {
 	sectionID  string
 	entity     string
 	token      string
-	commandFn  func(context.Context, *Client, Command)
+	commands   *CommandProcessor
 	subscribed map[string]struct{}
 	closeOnce  sync.Once
 }
 
-type Command struct {
-	Action  string          `json:"action"`
-	Topic   string          `json:"topic,omitempty"`
-	Payload json.RawMessage `json:"payload,omitempty"`
-}
-
 // NewClient crea un cliente WebSocket con metadata de usuario y buffer configurable.
-func NewClient(hub *Hub, conn *websocket.Conn, userID, sessionID, sectionID, entity, token string, buf int, commandFn func(context.Context, *Client, Command)) *Client {
-	return &Client{
+func NewClient(hub *Hub, conn *websocket.Conn, userID, sessionID, sectionID, entity, token string, buf int, commandFn CommandHandler) *Client {
+	client := &Client{
 		hub:        hub,
 		conn:       conn,
 		send:       make(chan []byte, buf),
@@ -43,9 +136,10 @@ func NewClient(hub *Hub, conn *websocket.Conn, userID, sessionID, sectionID, ent
 		sectionID:  strings.TrimSpace(sectionID),
 		entity:     strings.TrimSpace(entity),
 		token:      token,
-		commandFn:  commandFn,
 		subscribed: make(map[string]struct{}),
 	}
+	client.commands = NewCommandProcessor(hub, commandFn)
+	return client
 }
 
 func (c *Client) key() string {
@@ -116,39 +210,15 @@ func (c *Client) ReadPump() {
 			}
 			return
 		}
-		c.handleCommand(cmd)
+		c.processCommand(cmd)
 	}
 }
 
-func (c *Client) handleCommand(cmd Command) {
-	switch strings.ToLower(cmd.Action) {
-	case "subscribe":
-		if cmd.Topic != "" {
-			c.hub.subscribe(c, cmd.Topic)
-			slog.Debug("ws subscribe", slog.String("userId", c.userID), slog.String("sessionId", c.sessionID), slog.String("sectionId", c.sectionID), slog.String("topic", cmd.Topic))
-		}
-	case "unsubscribe":
-		if cmd.Topic != "" {
-			c.hub.unsubscribe(c, cmd.Topic)
-			slog.Debug("ws unsubscribe", slog.String("userId", c.userID), slog.String("sessionId", c.sessionID), slog.String("sectionId", c.sectionID), slog.String("topic", cmd.Topic))
-		}
-	case "ping":
-		ack := domain.Message{
-			Topic:     "system.pong",
-			Entity:    "system",
-			Action:    "pong",
-			Timestamp: time.Now().UTC(),
-		}
-		c.SendDomainMessage(&ack)
-	default:
-		if c.commandFn != nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			go func() {
-				defer cancel()
-				c.commandFn(ctx, c, cmd)
-			}()
-		}
+func (c *Client) processCommand(cmd Command) {
+	if c.commands == nil {
+		return
 	}
+	c.commands.Process(c, cmd)
 }
 
 type Hub struct {
@@ -194,7 +264,6 @@ func (h *Hub) unsubscribe(c *Client, topic string) {
 		}
 	}
 	delete(c.subscribed, topic)
-	slog.Debug("ws client unsubscribed", slog.String("userId", c.userID), slog.String("sessionId", c.sessionID), slog.String("sectionId", c.sectionID), slog.String("topic", topic))
 }
 
 func (h *Hub) detachClient(c *Client) {
@@ -264,10 +333,13 @@ func (h *Hub) Broadcast(_ context.Context, msg *domain.Message) {
 func (h *Hub) AttachClient(c *Client, topics []string) {
 	h.registerClient(c)
 	for _, topic := range topics {
-		if strings.TrimSpace(topic) == "" {
-			continue
+		if trimmed := strings.TrimSpace(topic); trimmed != "" {
+			h.subscribe(c, trimmed)
 		}
-		h.subscribe(c, topic)
 	}
 	slog.Info("ws client attached", slog.String("userId", c.userID), slog.String("sessionId", c.sessionID), slog.String("sectionId", c.sectionID), slog.Any("topics", topics))
+}
+
+func normalizeAction(action string) string {
+	return strings.ToLower(strings.TrimSpace(action))
 }
