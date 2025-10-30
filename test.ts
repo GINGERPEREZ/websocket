@@ -13,10 +13,3 @@ ws.onopen = () => {
 ws.onmessage = (event) => console.log("📩", event.data);
 ws.onclose = (event) => console.log("❌ cerrado", event.code, event.reason);
 ws.onerror = console.error;
-/*
-
-AHora si haz lo mismo para las demas entidades del rest es decirl 
-ws://localhost:8080/ws/table/:section/:token
-ws://localhost:8080/ws/user/:section/:token
-y asi con las demas entidades y tambien docuemntalos porfa. y que todo quede al 10000%
-*/

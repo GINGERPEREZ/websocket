@@ -1,25 +1,42 @@
 asyncapi: "2.6.0"
 info:
   title: Mesa Ya Realtime WebSocket API
-  version: 1.0.0
+  version: 1.2.0
   description: |
-    Realtime channel that complements the REST API documented in swagger.json.
+    Realtime channels that complement the REST API documented in swagger.json.
     Clients connect with a JWT issued by the Nest auth service and can request
-    restaurant snapshots or individual restaurant details via command messages.
+    list/detail snapshots or receive change events per entity. The contract now
+    spans restaurants, tables, reservations, reviews, sections, objects, section
+    objects, menus, dishes, images, payments, subscriptions, subscription plans,
+    auth users, and analytics dashboards for public, restaurant, and admin scopes.
 servers:
   local-dev:
-    url: ws://localhost:8080/ws/restaurant/{section}/{token}
+    url: ws://localhost:8080/ws/{entity}/{section}/{token}
     protocol: ws
     description: Local development endpoint
     variables:
+      entity:
+        description: Normalized entity slug (e.g. restaurants, tables, auth-users).
+        default: restaurants
       section:
-        description: Restaurant section identifier used to scope broadcasts.
-        default: "1"
+        description: Logical section identifier used to scope broadcasts.
+        default: "main-hall"
       token:
         description: >-
           JWT bearer token created by the Nest auth service. It may also be provided
           through the Authorization header after the connection is established.
         default: example.jwt.token
+  analytics-dev:
+    url: ws://localhost:8080/ws/analytics/{scope}/{entity}
+    protocol: ws
+    description: Local analytics endpoint (scopes: public, restaurant, admin)
+    variables:
+      scope:
+        description: Analytics scope (`public`, `restaurant`, or `admin`).
+        default: public
+      entity:
+        description: Analytics entity (e.g. users, restaurants, payments).
+        default: users
 channels:
   system.connected:
     subscribe:
@@ -33,29 +50,387 @@ channels:
         $ref: "#/components/messages/SystemPong"
   restaurants.list:
     subscribe:
-      summary: Result of a `list_restaurants` command or Kafka-triggered refresh.
+      summary: List stream for restaurant snapshots (Kafka refresh + `list_restaurants`).
       message:
-        $ref: "#/components/messages/RestaurantsList"
+        $ref: "#/components/messages/EntityList"
   restaurants.detail:
     subscribe:
-      summary: Result of a `get_restaurant` command or Kafka-triggered refresh for the cached entity.
+      summary: Detail stream for restaurant snapshots (Kafka refresh + `get_restaurant`).
       message:
-        $ref: "#/components/messages/RestaurantDetail"
+        $ref: "#/components/messages/EntityDetail"
   restaurants.error:
     subscribe:
-      summary: Error message associated with a command.
+      summary: Transport or validation errors for restaurant commands.
       message:
-        $ref: "#/components/messages/CommandError"
+        $ref: "#/components/messages/EntityError"
+  tables.list:
+    subscribe:
+      summary: List stream for table snapshots (`list_tables`).
+      message:
+        $ref: "#/components/messages/EntityList"
+  tables.detail:
+    subscribe:
+      summary: Detail stream for table snapshots (`get_table`).
+      message:
+        $ref: "#/components/messages/EntityDetail"
+  tables.error:
+    subscribe:
+      summary: Transport or validation errors for table commands.
+      message:
+        $ref: "#/components/messages/EntityError"
+  reservations.list:
+    subscribe:
+      summary: List stream for reservation snapshots (`list_reservations`).
+      message:
+        $ref: "#/components/messages/EntityList"
+  reservations.detail:
+    subscribe:
+      summary: Detail stream for reservation snapshots (`get_reservation`).
+      message:
+        $ref: "#/components/messages/EntityDetail"
+  reservations.error:
+    subscribe:
+      summary: Transport or validation errors for reservation commands.
+      message:
+        $ref: "#/components/messages/EntityError"
+  reviews.list:
+    subscribe:
+      summary: List stream for review snapshots (`list_reviews`).
+      message:
+        $ref: "#/components/messages/EntityList"
+  reviews.detail:
+    subscribe:
+      summary: Detail stream for review snapshots (`get_review`).
+      message:
+        $ref: "#/components/messages/EntityDetail"
+  reviews.error:
+    subscribe:
+      summary: Transport or validation errors for review commands.
+      message:
+        $ref: "#/components/messages/EntityError"
+  sections.list:
+    subscribe:
+      summary: List stream for sections (`list_sections`).
+      message:
+        $ref: "#/components/messages/EntityList"
+  sections.detail:
+    subscribe:
+      summary: Detail stream for sections (`get_section`).
+      message:
+        $ref: "#/components/messages/EntityDetail"
+  sections.error:
+    subscribe:
+      summary: Transport or validation errors for section commands.
+      message:
+        $ref: "#/components/messages/EntityError"
+  objects.list:
+    subscribe:
+      summary: List stream for objects (`list_objects`).
+      message:
+        $ref: "#/components/messages/EntityList"
+  objects.detail:
+    subscribe:
+      summary: Detail stream for objects (`get_object`).
+      message:
+        $ref: "#/components/messages/EntityDetail"
+  objects.error:
+    subscribe:
+      summary: Transport or validation errors for object commands.
+      message:
+        $ref: "#/components/messages/EntityError"
+  "section-objects.list":
+    subscribe:
+      summary: List stream for section-object snapshots (`list_section_objects`).
+      message:
+        $ref: "#/components/messages/EntityList"
+  "section-objects.detail":
+    subscribe:
+      summary: Detail stream for section-object snapshots (`get_section_object`).
+      message:
+        $ref: "#/components/messages/EntityDetail"
+  "section-objects.error":
+    subscribe:
+      summary: Transport or validation errors for section-object commands.
+      message:
+        $ref: "#/components/messages/EntityError"
+  menus.list:
+    subscribe:
+      summary: List stream for menu snapshots (`list_menus`).
+      message:
+        $ref: "#/components/messages/EntityList"
+  menus.detail:
+    subscribe:
+      summary: Detail stream for menu snapshots (`get_menu`).
+      message:
+        $ref: "#/components/messages/EntityDetail"
+  menus.error:
+    subscribe:
+      summary: Transport or validation errors for menu commands.
+      message:
+        $ref: "#/components/messages/EntityError"
+  dishes.list:
+    subscribe:
+      summary: List stream for dish snapshots (`list_dishes`).
+      message:
+        $ref: "#/components/messages/EntityList"
+  dishes.detail:
+    subscribe:
+      summary: Detail stream for dish snapshots (`get_dish`).
+      message:
+        $ref: "#/components/messages/EntityDetail"
+  dishes.error:
+    subscribe:
+      summary: Transport or validation errors for dish commands.
+      message:
+        $ref: "#/components/messages/EntityError"
+  images.list:
+    subscribe:
+      summary: List stream for image snapshots (`list_images`).
+      message:
+        $ref: "#/components/messages/EntityList"
+  images.detail:
+    subscribe:
+      summary: Detail stream for image snapshots (`get_image`).
+      message:
+        $ref: "#/components/messages/EntityDetail"
+  images.error:
+    subscribe:
+      summary: Transport or validation errors for image commands.
+      message:
+        $ref: "#/components/messages/EntityError"
+  payments.list:
+    subscribe:
+      summary: List stream for payment snapshots (`list_payments`).
+      message:
+        $ref: "#/components/messages/EntityList"
+  payments.detail:
+    subscribe:
+      summary: Detail stream for payment snapshots (`get_payment`).
+      message:
+        $ref: "#/components/messages/EntityDetail"
+  payments.error:
+    subscribe:
+      summary: Transport or validation errors for payment commands.
+      message:
+        $ref: "#/components/messages/EntityError"
+  subscriptions.list:
+    subscribe:
+      summary: List stream for subscription snapshots (`list_subscriptions`).
+      message:
+        $ref: "#/components/messages/EntityList"
+  subscriptions.detail:
+    subscribe:
+      summary: Detail stream for subscription snapshots (`get_subscription`).
+      message:
+        $ref: "#/components/messages/EntityDetail"
+  subscriptions.error:
+    subscribe:
+      summary: Transport or validation errors for subscription commands.
+      message:
+        $ref: "#/components/messages/EntityError"
+  "subscription-plans.list":
+    subscribe:
+      summary: List stream for subscription plan snapshots (`list_subscription_plans`).
+      message:
+        $ref: "#/components/messages/EntityList"
+  "subscription-plans.detail":
+    subscribe:
+      summary: Detail stream for subscription plan snapshots (`get_subscription_plan`).
+      message:
+        $ref: "#/components/messages/EntityDetail"
+  "subscription-plans.error":
+    subscribe:
+      summary: Transport or validation errors for subscription plan commands.
+      message:
+        $ref: "#/components/messages/EntityError"
+  "auth-users.list":
+    subscribe:
+      summary: List stream for auth user snapshots (`list_auth_users`).
+      message:
+        $ref: "#/components/messages/EntityList"
+  "auth-users.detail":
+    subscribe:
+      summary: Detail stream for auth user snapshots (`get_auth_user`).
+      message:
+        $ref: "#/components/messages/EntityDetail"
+  "auth-users.error":
+    subscribe:
+      summary: Transport or validation errors for auth user commands.
+      message:
+        $ref: "#/components/messages/EntityError"
+  "analytics.{scope}.{entity}.snapshot":
+    parameters:
+      scope:
+        description: Analytics scope (`public`, `restaurant`, `admin`).
+        schema:
+          type: string
+      entity:
+        description: Analytics entity (e.g. users, restaurants, payments).
+        schema:
+          type: string
+    subscribe:
+      summary: Snapshot stream for analytics dashboards.
+      message:
+        $ref: "#/components/messages/AnalyticsSnapshot"
+  "analytics.{scope}.{entity}.error":
+    parameters:
+      scope:
+        description: Analytics scope (`public`, `restaurant`, `admin`).
+        schema:
+          type: string
+      entity:
+        description: Analytics entity (e.g. users, restaurants, payments).
+        schema:
+          type: string
+    subscribe:
+      summary: Errors produced while refreshing analytics requests.
+      message:
+        $ref: "#/components/messages/AnalyticsError"
+  command.analytics.control:
+    publish:
+      summary: Refresh or filter analytics snapshots.
+      message:
+        $ref: "#/components/messages/AnalyticsCommand"
   command.list_restaurants:
     publish:
       summary: Request a paginated list of restaurants.
       message:
-        $ref: "#/components/messages/ListRestaurantsCommand"
+        $ref: "#/components/messages/ListCommand"
   command.get_restaurant:
     publish:
       summary: Request a single restaurant by identifier.
       message:
-        $ref: "#/components/messages/GetRestaurantCommand"
+        $ref: "#/components/messages/GetCommand"
+  command.list_tables:
+    publish:
+      summary: Request a paginated list of tables.
+      message:
+        $ref: "#/components/messages/ListCommand"
+  command.get_table:
+    publish:
+      summary: Request a single table by identifier.
+      message:
+        $ref: "#/components/messages/GetCommand"
+  command.list_reservations:
+    publish:
+      summary: Request a paginated list of reservations.
+      message:
+        $ref: "#/components/messages/ListCommand"
+  command.get_reservation:
+    publish:
+      summary: Request a single reservation by identifier.
+      message:
+        $ref: "#/components/messages/GetCommand"
+  command.list_reviews:
+    publish:
+      summary: Request a paginated list of reviews.
+      message:
+        $ref: "#/components/messages/ListCommand"
+  command.get_review:
+    publish:
+      summary: Request a single review by identifier.
+      message:
+        $ref: "#/components/messages/GetCommand"
+  command.list_sections:
+    publish:
+      summary: Request a paginated list of sections.
+      message:
+        $ref: "#/components/messages/ListCommand"
+  command.get_section:
+    publish:
+      summary: Request a single section by identifier.
+      message:
+        $ref: "#/components/messages/GetCommand"
+  command.list_objects:
+    publish:
+      summary: Request a paginated list of objects.
+      message:
+        $ref: "#/components/messages/ListCommand"
+  command.get_object:
+    publish:
+      summary: Request a single object by identifier.
+      message:
+        $ref: "#/components/messages/GetCommand"
+  command.list_section_objects:
+    publish:
+      summary: Request a paginated list of section objects.
+      message:
+        $ref: "#/components/messages/ListCommand"
+  command.get_section_object:
+    publish:
+      summary: Request a single section object by identifier.
+      message:
+        $ref: "#/components/messages/GetCommand"
+  command.list_menus:
+    publish:
+      summary: Request a paginated list of menus.
+      message:
+        $ref: "#/components/messages/ListCommand"
+  command.get_menu:
+    publish:
+      summary: Request a single menu by identifier.
+      message:
+        $ref: "#/components/messages/GetCommand"
+  command.list_dishes:
+    publish:
+      summary: Request a paginated list of dishes.
+      message:
+        $ref: "#/components/messages/ListCommand"
+  command.get_dish:
+    publish:
+      summary: Request a single dish by identifier.
+      message:
+        $ref: "#/components/messages/GetCommand"
+  command.list_images:
+    publish:
+      summary: Request a paginated list of images.
+      message:
+        $ref: "#/components/messages/ListCommand"
+  command.get_image:
+    publish:
+      summary: Request a single image by identifier.
+      message:
+        $ref: "#/components/messages/GetCommand"
+  command.list_payments:
+    publish:
+      summary: Request a paginated list of payments.
+      message:
+        $ref: "#/components/messages/ListCommand"
+  command.get_payment:
+    publish:
+      summary: Request a single payment by identifier.
+      message:
+        $ref: "#/components/messages/GetCommand"
+  command.list_subscriptions:
+    publish:
+      summary: Request a paginated list of subscriptions.
+      message:
+        $ref: "#/components/messages/ListCommand"
+  command.get_subscription:
+    publish:
+      summary: Request a single subscription by identifier.
+      message:
+        $ref: "#/components/messages/GetCommand"
+  command.list_subscription_plans:
+    publish:
+      summary: Request a paginated list of subscription plans.
+      message:
+        $ref: "#/components/messages/ListCommand"
+  command.get_subscription_plan:
+    publish:
+      summary: Request a single subscription plan by identifier.
+      message:
+        $ref: "#/components/messages/GetCommand"
+  command.list_auth_users:
+    publish:
+      summary: Request a paginated list of auth users.
+      message:
+        $ref: "#/components/messages/ListCommand"
+  command.get_auth_user:
+    publish:
+      summary: Request a single auth user by identifier.
+      message:
+        $ref: "#/components/messages/GetCommand"
   command.subscribe:
     publish:
       summary: Subscribe to additional broadcast topics.
@@ -72,6 +447,48 @@ channels:
       message:
         $ref: "#/components/messages/PingCommand"
 components:
+  schemas:
+    ListCommandPayload:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          default: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        search:
+          type: string
+          description: Optional free-text search term. Defaults to the connected section when omitted.
+        sortBy:
+          type: string
+        sortOrder:
+          type: string
+          enum:
+            - ASC
+            - DESC
+    GetCommandPayload:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          description: Resource identifier (UUID, slug, or internal code).
+    AnalyticsCommandPayload:
+      type: object
+      properties:
+        identifier:
+          type: string
+          description: Optional identifier required by some analytics endpoints (e.g. restaurantId).
+        query:
+          type: object
+          additionalProperties:
+            type: string
+          description: Optional query filters (startDate, sectionId, restaurantId, etc.).
   messages:
     SystemConnected:
       name: system.connected
@@ -93,10 +510,12 @@ components:
                 type: string
               sectionId:
                 type: string
+              scope:
+                type: string
+              analyticsKey:
+                type: string
             required:
-              - userId
               - sessionId
-              - sectionId
           data:
             type: object
             properties:
@@ -111,6 +530,18 @@ components:
               roles:
                 type: array
                 items:
+                  type: string
+              mode:
+                type: string
+              topics:
+                type: array
+                items:
+                  type: string
+              identifier:
+                type: string
+              query:
+                type: object
+                additionalProperties:
                   type: string
           timestamp:
             type: string
@@ -141,15 +572,17 @@ components:
           - entity
           - action
           - timestamp
-    RestaurantsList:
-      name: restaurants.list
+    EntityList:
+      name: entity.list
       payload:
         type: object
         properties:
           topic:
-            const: restaurants.list
+            type: string
+            pattern: '^[a-z-]+\.list$'
           entity:
-            const: restaurants
+            type: string
+            pattern: "^[a-z-]+$"
           action:
             const: list
           resourceId:
@@ -170,9 +603,17 @@ components:
                 type: string
               sortOrder:
                 type: string
+              itemsCount:
+                type: string
+              total:
+                type: string
+            required:
+              - sectionId
+              - page
+              - limit
           data:
             type: object
-            description: Copy of the REST payload returned by `/api/v1/restaurant`.
+            description: Copy of the REST payload returned by the corresponding `/api/v1/{entity}` endpoint.
           timestamp:
             type: string
             format: date-time
@@ -181,32 +622,32 @@ components:
           - entity
           - action
           - resourceId
+          - metadata
           - data
           - timestamp
-    RestaurantDetail:
-      name: restaurants.detail
+    EntityDetail:
+      name: entity.detail
       payload:
         type: object
         properties:
           topic:
-            const: restaurants.detail
+            type: string
+            pattern: '^[a-z-]+\.detail$'
           entity:
-            const: restaurants
+            type: string
+            pattern: "^[a-z-]+$"
           action:
             const: detail
           resourceId:
             type: string
-            description: Restaurant identifier.
+            description: Resource identifier associated with the detail payload.
           metadata:
             type: object
-            properties:
-              sectionId:
-                type: string
-              restaurantId:
-                type: string
+            additionalProperties:
+              type: string
           data:
             type: object
-            description: Copy of the REST payload returned by `/api/v1/restaurant/{id}`.
+            description: Copy of the REST payload returned by `/api/v1/{entity}/{id}`.
           timestamp:
             type: string
             format: date-time
@@ -217,19 +658,22 @@ components:
           - resourceId
           - data
           - timestamp
-    CommandError:
-      name: restaurants.error
+    EntityError:
+      name: entity.error
       payload:
         type: object
         properties:
           topic:
-            const: restaurants.error
+            type: string
+            pattern: '^[a-z-]+\.error$'
           entity:
-            const: restaurants
+            type: string
+            pattern: "^[a-z-]+$"
           action:
             const: error
           resourceId:
             type: string
+            description: Section identifier the client is subscribed to.
           metadata:
             type: object
             properties:
@@ -239,6 +683,100 @@ components:
                 type: string
               reason:
                 type: string
+            required:
+              - action
+          data:
+            type: object
+            properties:
+              error:
+                type: string
+          timestamp:
+            type: string
+            format: date-time
+        required:
+          - topic
+          - entity
+          - action
+          - resourceId
+          - metadata
+          - data
+          - timestamp
+    AnalyticsSnapshot:
+      name: analytics.snapshot
+      payload:
+        type: object
+        properties:
+          topic:
+            type: string
+            pattern: '^analytics-[a-z-]+-[a-z-]+\.snapshot$'
+          entity:
+            type: string
+            pattern: '^analytics-[a-z-]+-[a-z-]+$'
+          action:
+            const: snapshot
+          resourceId:
+            type: string
+            description: Optional identifier echoed back from the request.
+          metadata:
+            type: object
+            properties:
+              sessionId:
+                type: string
+              scope:
+                type: string
+              identifier:
+                type: string
+              query:
+                type: object
+                additionalProperties:
+                  type: string
+            additionalProperties:
+              type: string
+          data:
+            type: object
+            description: Copy of the REST payload returned by `/api/v1/.../analytics`.
+          timestamp:
+            type: string
+            format: date-time
+        required:
+          - topic
+          - entity
+          - action
+          - metadata
+          - data
+          - timestamp
+    AnalyticsError:
+      name: analytics.error
+      payload:
+        type: object
+        properties:
+          topic:
+            type: string
+            pattern: '^analytics-[a-z-]+-[a-z-]+\.error$'
+          entity:
+            type: string
+            pattern: '^analytics-[a-z-]+-[a-z-]+$'
+          action:
+            const: error
+          resourceId:
+            type: string
+          metadata:
+            type: object
+            properties:
+              sessionId:
+                type: string
+              sectionId:
+                type: string
+              scope:
+                type: string
+              identifier:
+                type: string
+              action:
+                type: string
+              reason:
+                type: string
+            additionalProperties:
+              type: string
           data:
             type: object
             properties:
@@ -254,55 +792,46 @@ components:
           - metadata
           - data
           - timestamp
-    ListRestaurantsCommand:
-      name: list_restaurants
+    AnalyticsCommand:
+      name: analytics.command
       payload:
         type: object
-        required:
-          - action
         properties:
           action:
-            const: list_restaurants
+            type: string
+            enum:
+              - refresh
+              - fetch
+              - query
           payload:
-            type: object
-            properties:
-              page:
-                type: integer
-                minimum: 1
-                default: 1
-              limit:
-                type: integer
-                minimum: 1
-                maximum: 100
-                default: 20
-              search:
-                type: string
-                description: Overrides the default section filter.
-              sortBy:
-                type: string
-              sortOrder:
-                type: string
-                enum:
-                  - ASC
-                  - DESC
-    GetRestaurantCommand:
-      name: get_restaurant
+            $ref: "#/components/schemas/AnalyticsCommandPayload"
+        required:
+          - action
+    ListCommand:
+      name: command.list
       payload:
         type: object
+        properties:
+          action:
+            type: string
+            pattern: "^list(_[a-z0-9-]+)?$"
+          payload:
+            $ref: "#/components/schemas/ListCommandPayload"
+        required:
+          - action
+    GetCommand:
+      name: command.get
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            pattern: "^get(_[a-z0-9-]+)?$"
+          payload:
+            $ref: "#/components/schemas/GetCommandPayload"
         required:
           - action
           - payload
-        properties:
-          action:
-            const: get_restaurant
-          payload:
-            type: object
-            required:
-              - id
-            properties:
-              id:
-                type: string
-                description: Restaurant identifier (UUID).
     SubscribeCommand:
       name: subscribe
       payload:

@@ -79,12 +79,77 @@ func Load() (Config, error) {
 
 	if len(cfg.Kafka.Topics) == 0 {
 		cfg.Kafka.Topics = map[string][]string{
-			"users":       {"users.events"},
-			"restaurants": {"restaurants.events"},
-			"orders":      {"orders.events"},
-			"bookings":    {"bookings.events"},
-			"sections":    {"sections.events"},
-			"reviews":     {"reviews.events"},
+			"reviews": {
+				"mesa-ya.reviews.created",
+				"mesa-ya.reviews.updated",
+				"mesa-ya.reviews.deleted",
+			},
+			"restaurants": {
+				"mesa-ya.restaurants.created",
+				"mesa-ya.restaurants.updated",
+				"mesa-ya.restaurants.deleted",
+			},
+			"sections": {
+				"mesa-ya.sections.created",
+				"mesa-ya.sections.updated",
+				"mesa-ya.sections.deleted",
+			},
+			"tables": {
+				"mesa-ya.tables.created",
+				"mesa-ya.tables.updated",
+				"mesa-ya.tables.deleted",
+			},
+			"objects": {
+				"mesa-ya.objects.created",
+				"mesa-ya.objects.updated",
+				"mesa-ya.objects.deleted",
+			},
+			"section-objects": {
+				"mesa-ya.section-objects.created",
+				"mesa-ya.section-objects.updated",
+				"mesa-ya.section-objects.deleted",
+			},
+			"menus": {
+				"mesa-ya.menus.created",
+				"mesa-ya.menus.updated",
+				"mesa-ya.menus.deleted",
+			},
+			"dishes": {
+				"mesa-ya.dishes.created",
+				"mesa-ya.dishes.updated",
+				"mesa-ya.dishes.deleted",
+			},
+			"images": {
+				"mesa-ya.images.created",
+				"mesa-ya.images.updated",
+				"mesa-ya.images.deleted",
+			},
+			"reservations": {
+				"mesa-ya.reservations.created",
+				"mesa-ya.reservations.updated",
+				"mesa-ya.reservations.deleted",
+			},
+			"payments": {
+				"mesa-ya.payments.created",
+				"mesa-ya.payments.updated",
+				"mesa-ya.payments.deleted",
+			},
+			"subscriptions": {
+				"mesa-ya.subscriptions.created",
+				"mesa-ya.subscriptions.updated",
+				"mesa-ya.subscriptions.deleted",
+			},
+			"subscription-plans": {
+				"mesa-ya.subscription-plans.created",
+				"mesa-ya.subscription-plans.updated",
+				"mesa-ya.subscription-plans.deleted",
+			},
+			"auth-users": {
+				"mesa-ya.auth.user-signed-up",
+				"mesa-ya.auth.user-logged-in",
+				"mesa-ya.auth.user-roles-updated",
+				"mesa-ya.auth.role-permissions-updated",
+			},
 		}
 	}
 

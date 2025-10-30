@@ -60,15 +60,49 @@ Definidos en `kafka.topics.ts` y exportados vía `shared/infrastructure/kafka/in
 
 ```ts
 export const KAFKA_TOPICS = {
-  REVIEW_CREATED: 'mesa-ya.reviews.created',
-  REVIEW_UPDATED: 'mesa-ya.reviews.updated',
-  REVIEW_DELETED: 'mesa-ya.reviews.deleted',
-  RESTAURANT_CREATED: 'mesa-ya.restaurants.created',
-  RESTAURANT_UPDATED: 'mesa-ya.restaurants.updated',
-  RESTAURANT_DELETED: 'mesa-ya.restaurants.deleted',
-  SECTION_CREATED: 'mesa-ya.sections.created',
-  SECTION_UPDATED: 'mesa-ya.sections.updated',
-  SECTION_DELETED: 'mesa-ya.sections.deleted',
+  REVIEW_CREATED: "mesa-ya.reviews.created",
+  REVIEW_UPDATED: "mesa-ya.reviews.updated",
+  REVIEW_DELETED: "mesa-ya.reviews.deleted",
+  RESTAURANT_CREATED: "mesa-ya.restaurants.created",
+  RESTAURANT_UPDATED: "mesa-ya.restaurants.updated",
+  RESTAURANT_DELETED: "mesa-ya.restaurants.deleted",
+  SECTION_CREATED: "mesa-ya.sections.created",
+  SECTION_UPDATED: "mesa-ya.sections.updated",
+  SECTION_DELETED: "mesa-ya.sections.deleted",
+  TABLE_CREATED: "mesa-ya.tables.created",
+  TABLE_UPDATED: "mesa-ya.tables.updated",
+  TABLE_DELETED: "mesa-ya.tables.deleted",
+  OBJECT_CREATED: "mesa-ya.objects.created",
+  OBJECT_UPDATED: "mesa-ya.objects.updated",
+  OBJECT_DELETED: "mesa-ya.objects.deleted",
+  MENU_CREATED: "mesa-ya.menus.created",
+  MENU_UPDATED: "mesa-ya.menus.updated",
+  MENU_DELETED: "mesa-ya.menus.deleted",
+  DISH_CREATED: "mesa-ya.dishes.created",
+  DISH_UPDATED: "mesa-ya.dishes.updated",
+  DISH_DELETED: "mesa-ya.dishes.deleted",
+  IMAGE_CREATED: "mesa-ya.images.created",
+  IMAGE_UPDATED: "mesa-ya.images.updated",
+  IMAGE_DELETED: "mesa-ya.images.deleted",
+  SECTION_OBJECT_CREATED: "mesa-ya.section-objects.created",
+  SECTION_OBJECT_UPDATED: "mesa-ya.section-objects.updated",
+  SECTION_OBJECT_DELETED: "mesa-ya.section-objects.deleted",
+  RESERVATION_CREATED: "mesa-ya.reservations.created",
+  RESERVATION_UPDATED: "mesa-ya.reservations.updated",
+  RESERVATION_DELETED: "mesa-ya.reservations.deleted",
+  PAYMENT_CREATED: "mesa-ya.payments.created",
+  PAYMENT_UPDATED: "mesa-ya.payments.updated",
+  PAYMENT_DELETED: "mesa-ya.payments.deleted",
+  SUBSCRIPTION_CREATED: "mesa-ya.subscriptions.created",
+  SUBSCRIPTION_UPDATED: "mesa-ya.subscriptions.updated",
+  SUBSCRIPTION_DELETED: "mesa-ya.subscriptions.deleted",
+  SUBSCRIPTION_PLAN_CREATED: "mesa-ya.subscription-plans.created",
+  SUBSCRIPTION_PLAN_UPDATED: "mesa-ya.subscription-plans.updated",
+  SUBSCRIPTION_PLAN_DELETED: "mesa-ya.subscription-plans.deleted",
+  AUTH_USER_SIGNED_UP: "mesa-ya.auth.user-signed-up",
+  AUTH_USER_LOGGED_IN: "mesa-ya.auth.user-logged-in",
+  AUTH_USER_ROLES_UPDATED: "mesa-ya.auth.user-roles-updated",
+  AUTH_ROLE_PERMISSIONS_UPDATED: "mesa-ya.auth.role-permissions-updated",
 } as const;
 ```
 
@@ -83,7 +117,7 @@ export const KAFKA_TOPICS = {
 export class ReviewsService {
   constructor(
     private readonly createReviewUseCase: CreateReviewUseCase,
-    @KafkaProducer() private readonly kafkaService: KafkaService,
+    @KafkaProducer() private readonly kafkaService: KafkaService
   ) {}
 }
 ```
@@ -116,6 +150,48 @@ Ventajas:
 ### Alternativa manual
 
 Si necesitas control total (casos muy específicos) puedes llamar directamente al servicio:
+
+## Catálogo de eventos por servicio
+
+La tabla resume los eventos emitidos automáticamente por cada servicio de aplicación junto con la forma del payload y el valor que devuelve el método original. Para inspeccionar el detalle exacto revisa las anotaciones `@KafkaEmit` en cada servicio.
+
+| Servicio                  | Método                  | Tópico                                  | Payload (campos principales)                     | Retorno                             |
+| ------------------------- | ----------------------- | --------------------------------------- | ------------------------------------------------ | ----------------------------------- |
+| `AuthService`             | `signup`                | `mesa-ya.auth.user-signed-up`           | `action`, `entityId`, `email`, `token`, `entity` | `AuthTokenResponse`                 |
+| `AuthService`             | `login`                 | `mesa-ya.auth.user-logged-in`           | `action`, `email`, `entityId`, `token`, `entity` | `AuthTokenResponse`                 |
+| `AuthService`             | `updateUserRoles`       | `mesa-ya.auth.user-roles-updated`       | `action`, `entityId`, `roles`, `entity`          | `AuthUser`                          |
+| `AuthService`             | `updateRolePermissions` | `mesa-ya.auth.role-permissions-updated` | `action`, `roleName`, `permissions`, `entity`    | `AuthRole`                          |
+| `ImagesService`           | `create`                | `mesa-ya.images.created`                | `action`, `entity`                               | `ImageResponseDto`                  |
+| `ImagesService`           | `update`                | `mesa-ya.images.updated`                | `action`, `entityId`, `entity`                   | `ImageResponseDto`                  |
+| `ImagesService`           | `delete`                | `mesa-ya.images.deleted`                | `action`, `entityId`, `entity`                   | `DeleteImageResponseDto`            |
+| `PaymentService`          | `createPayment`         | `mesa-ya.payments.created`              | `action`, `entityId`, `entity`                   | `PaymentResponseDto`                |
+| `PaymentService`          | `updatePaymentStatus`   | `mesa-ya.payments.updated`              | `action`, `entityId`, `status`, `entity`         | `PaymentResponseDto`                |
+| `PaymentService`          | `deletePayment`         | `mesa-ya.payments.deleted`              | `action`, `entityId`, `entity`                   | `DeletePaymentResponseDto`          |
+| `ReservationService`      | `create`                | `mesa-ya.reservations.created`          | `action`, `entity`, `performedBy`                | `ReservationResponseDto`            |
+| `ReservationService`      | `update`                | `mesa-ya.reservations.updated`          | `action`, `entityId`, `entity`, `performedBy`    | `ReservationResponseDto`            |
+| `ReservationService`      | `delete`                | `mesa-ya.reservations.deleted`          | `action`, `entityId`, `entity`, `performedBy`    | `DeleteReservationResponseDto`      |
+| `RestaurantsService`      | `create`                | `mesa-ya.restaurants.created`           | `action`, `entity`, `performedBy`                | `RestaurantResponseDto`             |
+| `RestaurantsService`      | `update`                | `mesa-ya.restaurants.updated`           | `action`, `entity`, `performedBy`                | `RestaurantResponseDto`             |
+| `RestaurantsService`      | `delete`                | `mesa-ya.restaurants.deleted`           | `action`, `entityId`, `entity`, `performedBy`    | `DeleteRestaurantResponseDto`       |
+| `ReviewsService`          | `create`                | `mesa-ya.reviews.created`               | `action`, `entity`, `performedBy`                | `ReviewResponseDto`                 |
+| `ReviewsService`          | `update`                | `mesa-ya.reviews.updated`               | `action`, `entity`, `performedBy`                | `ReviewResponseDto`                 |
+| `ReviewsService`          | `delete`                | `mesa-ya.reviews.deleted`               | `action`, `entityId`, `entity`, `performedBy`    | `DeleteReviewResponseDto`           |
+| `SectionObjectsService`   | `create`                | `mesa-ya.section-objects.created`       | `action`, `entity`                               | `SectionObjectResponseDto`          |
+| `SectionObjectsService`   | `update`                | `mesa-ya.section-objects.updated`       | `action`, `entityId`, `entity`                   | `SectionObjectResponseDto`          |
+| `SectionObjectsService`   | `delete`                | `mesa-ya.section-objects.deleted`       | `action`, `entityId`, `entity`                   | `DeleteSectionObjectResponseDto`    |
+| `SectionsService`         | `create`                | `mesa-ya.sections.created`              | `action`, `entity`                               | `SectionResponseDto`                |
+| `SectionsService`         | `update`                | `mesa-ya.sections.updated`              | `action`, `entity`                               | `SectionResponseDto`                |
+| `SectionsService`         | `delete`                | `mesa-ya.sections.deleted`              | `action`, `entityId`, `entity`                   | `DeleteSectionResponseDto`          |
+| `SubscriptionService`     | `create`                | `mesa-ya.subscriptions.created`         | `action`, `entityId`, `entity`                   | `SubscriptionResponseDto`           |
+| `SubscriptionService`     | `update`                | `mesa-ya.subscriptions.updated`         | `action`, `entityId`, `entity`                   | `SubscriptionResponseDto`           |
+| `SubscriptionService`     | `updateState`           | `mesa-ya.subscriptions.updated`         | `action`, `entityId`, `state`, `entity`          | `SubscriptionResponseDto`           |
+| `SubscriptionService`     | `delete`                | `mesa-ya.subscriptions.deleted`         | `action`, `entityId`, `entity`                   | `DeleteSubscriptionResponseDto`     |
+| `SubscriptionPlanService` | `create`                | `mesa-ya.subscription-plans.created`    | `action`, `entityId`, `entity`                   | `SubscriptionPlanResponseDto`       |
+| `SubscriptionPlanService` | `update`                | `mesa-ya.subscription-plans.updated`    | `action`, `entityId`, `entity`                   | `SubscriptionPlanResponseDto`       |
+| `SubscriptionPlanService` | `delete`                | `mesa-ya.subscription-plans.deleted`    | `action`, `entityId`, `entity`                   | `DeleteSubscriptionPlanResponseDto` |
+| `TablesService`           | `create`                | `mesa-ya.tables.created`                | `action`, `entity`                               | `TableResponseDto`                  |
+| `TablesService`           | `update`                | `mesa-ya.tables.updated`                | `action`, `entityId`, `entity`                   | `TableResponseDto`                  |
+| `TablesService`           | `delete`                | `mesa-ya.tables.deleted`                | `action`, `entityId`, `entity`                   | `DeleteTableResponseDto`            |
 
 ```ts
 await this.kafkaService.emit(KAFKA_TOPICS.REVIEW_CREATED, payload);
