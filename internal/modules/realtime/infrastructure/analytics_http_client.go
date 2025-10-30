@@ -2,7 +2,6 @@ package infrastructure
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -13,7 +12,6 @@ import (
 
 	"mesaYaWs/internal/modules/realtime/application/port"
 	"mesaYaWs/internal/modules/realtime/domain"
-	"mesaYaWs/internal/shared/normalization"
 )
 
 // AnalyticsHTTPClient implements AnalyticsFetcher by calling the REST analytics endpoints.
@@ -89,26 +87,6 @@ func (c *AnalyticsHTTPClient) Fetch(ctx context.Context, token, path string, que
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
 		slog.Error("analytics fetch unexpected status", slog.Int("status", res.StatusCode), slog.String("url", req.URL.String()), slog.String("body", strings.TrimSpace(string(body))))
 		return nil, fmt.Errorf("unexpected analytics response %d", res.StatusCode)
-	}
-}
-
-func decodeAnalyticsSnapshot(body io.Reader) (*domain.AnalyticsSnapshot, error) {
-	var payload any
-	if err := json.NewDecoder(body).Decode(&payload); err != nil {
-		return nil, fmt.Errorf("decode analytics: %w", err)
-	}
-	normalized := normalizeAnalyticsPayload(payload)
-	return &domain.AnalyticsSnapshot{Payload: normalized}, nil
-}
-
-func normalizeAnalyticsPayload(payload any) any {
-	switch typed := payload.(type) {
-	case map[string]any:
-		return normalization.MapFromPayload(typed)
-	case []any:
-		return map[string]any{"items": typed}
-	default:
-		return map[string]any{"value": typed}
 	}
 }
 
