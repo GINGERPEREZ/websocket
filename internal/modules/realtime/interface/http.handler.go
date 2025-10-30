@@ -226,7 +226,7 @@ func sendCommandError(client *infrastructure.Client, entity, section, action, re
 	client.SendDomainMessage(message)
 }
 
-type commandHandlerFactory func(entity, section, token string, connectUC *usecase.ConnectSectionUseCase) func(context.Context, *infrastructure.Client, infrastructure.Command)
+type commandHandlerFactory func(entity, section, token string, connectUC *usecase.ConnectSectionUseCase) infrastructure.CommandHandler
 
 var entityHandlers = func() map[string]commandHandlerFactory {
 	handlers := make(map[string]commandHandlerFactory)
@@ -259,7 +259,7 @@ var entityHandlers = func() map[string]commandHandlerFactory {
 func newGenericCommandHandler(canonicalEntity, pluralAction, singularAction string) commandHandlerFactory {
 	normalizedPlural := strings.ToLower(strings.TrimSpace(pluralAction))
 	normalizedSingular := strings.ToLower(strings.TrimSpace(singularAction))
-	return func(entity, section, token string, connectUC *usecase.ConnectSectionUseCase) func(context.Context, *infrastructure.Client, infrastructure.Command) {
+	return func(entity, section, token string, connectUC *usecase.ConnectSectionUseCase) infrastructure.CommandHandler {
 		return func(cmdCtx context.Context, client *infrastructure.Client, cmd infrastructure.Command) {
 			action := strings.ToLower(strings.TrimSpace(cmd.Action))
 			switch action {

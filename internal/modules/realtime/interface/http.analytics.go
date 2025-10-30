@@ -152,7 +152,7 @@ func extractBearerToken(r *http.Request) string {
 	return ""
 }
 
-func newAnalyticsCommandHandler(key string, cfg usecase.AnalyticsEndpointConfig, analyticsUC *usecase.AnalyticsUseCase, token, sessionID string, base *domain.AnalyticsRequest) func(context.Context, *infrastructure.Client, infrastructure.Command) {
+func newAnalyticsCommandHandler(key string, cfg usecase.AnalyticsEndpointConfig, analyticsUC *usecase.AnalyticsUseCase, token, sessionID string, base *domain.AnalyticsRequest) infrastructure.CommandHandler {
 	trimmedToken := strings.TrimSpace(token)
 	return func(cmdCtx context.Context, client *infrastructure.Client, cmd infrastructure.Command) {
 		action := strings.ToLower(strings.TrimSpace(cmd.Action))
