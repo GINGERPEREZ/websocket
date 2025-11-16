@@ -32,28 +32,28 @@ type entityEndpoint struct {
 
 var entityEndpoints = map[string]entityEndpoint{
 	"restaurants": {
-		listPathBuilder:   staticPathBuilder("/api/v1/public/restaurant"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/public/restaurant"),
+		listPathBuilder:   staticPathBuilder("/api/v1/public/restaurants"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/public/restaurants"),
 	},
 	"tables": {
-		listPathBuilder:   requiredValuePathBuilder("/api/v1/public/table/section/%s"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/public/table"),
+		listPathBuilder:   requiredValuePathBuilder("/api/v1/public/tables/section/%s"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/public/tables"),
 	},
 	"reservations": {
 		listPathBuilder:   requiredValuePathBuilder("/api/v1/public/reservations/restaurant/%s"),
 		detailPathBuilder: resourcePathBuilder("/api/v1/public/reservations"),
 	},
 	"reviews": {
-		listPathBuilder:   requiredValuePathBuilder("/api/v1/public/review/restaurant/%s"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/public/review"),
+		listPathBuilder:   requiredValuePathBuilder("/api/v1/public/reviews/restaurant/%s"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/public/reviews"),
 	},
 	"sections": {
-		listPathBuilder:   requiredValuePathBuilder("/api/v1/public/section/restaurant/%s"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/public/section"),
+		listPathBuilder:   requiredValuePathBuilder("/api/v1/public/sections/restaurant/%s"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/public/sections"),
 	},
 	"objects": {
-		listPathBuilder:   staticPathBuilder("/api/v1/public/object"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/public/object"),
+		listPathBuilder:   staticPathBuilder("/api/v1/public/objects"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/public/objects"),
 	},
 	"menus": {
 		listPathBuilder:   staticPathBuilder("/api/v1/public/menus"),
@@ -64,8 +64,8 @@ var entityEndpoints = map[string]entityEndpoint{
 		detailPathBuilder: resourcePathBuilder("/api/v1/public/dishes"),
 	},
 	"images": {
-		listPathBuilder:   staticPathBuilder("/api/v1/image"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/image"),
+		listPathBuilder:   staticPathBuilder("/api/v1/public/images"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/public/images"),
 	},
 	"section-objects": {
 		listPathBuilder:   staticPathBuilder("/api/v1/admin/section-objects"),
