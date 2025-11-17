@@ -23,6 +23,70 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
+const (
+	roleAdmin = "ADMIN"
+	roleOwner = "OWNER"
+	roleUser  = "USER"
+)
+
+type entityPolicy struct {
+	allowedRoles map[string]struct{}
+}
+
+func newEntityPolicy(roles ...string) entityPolicy {
+	allowed := make(map[string]struct{}, len(roles))
+	for _, role := range roles {
+		trimmed := strings.ToUpper(strings.TrimSpace(role))
+		if trimmed == "" {
+			continue
+		}
+		allowed[trimmed] = struct{}{}
+	}
+	return entityPolicy{allowedRoles: allowed}
+}
+
+func (p entityPolicy) allows(role string) bool {
+	if len(p.allowedRoles) == 0 {
+		return true
+	}
+	normalized := strings.ToUpper(strings.TrimSpace(role))
+	_, ok := p.allowedRoles[normalized]
+	return ok
+}
+
+var entityPolicies = map[string]entityPolicy{
+	"restaurants":        newEntityPolicy(roleAdmin, roleOwner, roleUser),
+	"tables":             newEntityPolicy(roleAdmin, roleOwner, roleUser),
+	"reservations":       newEntityPolicy(roleAdmin, roleOwner, roleUser),
+	"reviews":            newEntityPolicy(roleAdmin, roleOwner, roleUser),
+	"sections":           newEntityPolicy(roleAdmin, roleOwner, roleUser),
+	"objects":            newEntityPolicy(roleAdmin, roleOwner, roleUser),
+	"menus":              newEntityPolicy(roleAdmin, roleOwner, roleUser),
+	"dishes":             newEntityPolicy(roleAdmin, roleOwner, roleUser),
+	"images":             newEntityPolicy(roleAdmin, roleOwner, roleUser),
+	"section-objects":    newEntityPolicy(roleAdmin, roleOwner),
+	"payments":           newEntityPolicy(roleAdmin, roleOwner),
+	"subscriptions":      newEntityPolicy(roleAdmin, roleOwner),
+	"subscription-plans": newEntityPolicy(roleAdmin, roleOwner, roleUser),
+	"auth-users":         newEntityPolicy(roleAdmin),
+}
+
+func isEntityAccessAllowed(entity string, claims *auth.Claims) bool {
+	if claims == nil {
+		return false
+	}
+	policy, present := entityPolicies[entity]
+	if !present {
+		return true
+	}
+	for _, role := range claims.Roles {
+		if policy.allows(role) {
+			return true
+		}
+	}
+	return false
+}
+
 // NewWebsocketHandler expone /ws/:entity/:section/:token y valida el JWT localmente.
 func NewWebsocketHandler(
 	hub *infrastructure.Hub,
@@ -120,6 +184,16 @@ func NewWebsocketHandler(
 				logger.Warnf("ws connect rejected entity=%s section=%s ip=%s reqID=%s: %v", entity, section, peerIP, requestID, err)
 			}
 			return echo.NewHTTPError(status, message)
+		}
+
+		if !isEntityAccessAllowed(entity, output.Claims) {
+			roles := []string{}
+			if output.Claims != nil {
+				roles = append(roles, output.Claims.Roles...)
+			}
+			slog.Warn("ws handler forbidden entity access", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("roles", roles))
+			logger.Warnf("ws rejected: forbidden entity entity=%s section=%s roles=%v ip=%s reqID=%s", entity, section, roles, peerIP, requestID)
+			return echo.NewHTTPError(http.StatusForbidden, "forbidden")
 		}
 
 		conn, err := upgrader.Upgrade(c.Response(), c.Request(), nil)

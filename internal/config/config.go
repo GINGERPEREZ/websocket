@@ -72,8 +72,21 @@ func Load() (Config, error) {
 			Format:    stringOrDefault(strings.TrimSpace(os.Getenv("LOG_FORMAT")), "json"),
 		},
 		Websocket: WebsocketConfig{
-			AllowedActions: firstNonEmptySlice(splitEnv(os.Getenv("WS_ALLOWED_ACTIONS")), []string{"created", "updated", "deleted", "snapshot"}),
-			DefaultEntity:  stringOrDefault(strings.TrimSpace(os.Getenv("WS_DEFAULT_ENTITY")), "restaurants"),
+			AllowedActions: firstNonEmptySlice(
+				splitEnv(os.Getenv("WS_ALLOWED_ACTIONS")),
+				[]string{
+					"created",
+					"updated",
+					"deleted",
+					"snapshot",
+					"status-changed",
+					"user-signed-up",
+					"user-logged-in",
+					"user-roles-updated",
+					"role-permissions-updated",
+				},
+			),
+			DefaultEntity: stringOrDefault(strings.TrimSpace(os.Getenv("WS_DEFAULT_ENTITY")), "restaurants"),
 		},
 	}
 
@@ -149,6 +162,9 @@ func Load() (Config, error) {
 				"mesa-ya.auth.user-logged-in",
 				"mesa-ya.auth.user-roles-updated",
 				"mesa-ya.auth.role-permissions-updated",
+			},
+			"owner-upgrade": {
+				"mesa-ya.owner-upgrade.status-changed",
 			},
 		}
 	}
