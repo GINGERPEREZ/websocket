@@ -2,11 +2,11 @@ package domain
 
 // ListEntityCommand represents the generic payload for paginated list commands.
 type ListEntityCommand struct {
-	Page      int    `json:"page"`
-	Limit     int    `json:"limit"`
-	Search    string `json:"search"`
-	SortBy    string `json:"sortBy"`
-	SortOrder string `json:"sortOrder"`
+	Page      int               `json:"page"`
+	Limit     int               `json:"limit"`
+	Search    string            `json:"search"`
+	SortBy    string            `json:"sortBy"`
+	SortOrder string            `json:"sortOrder"`
 	Filters   map[string]string `json:"filters,omitempty"`
 }
 
