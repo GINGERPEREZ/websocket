@@ -163,6 +163,12 @@ func Load() (Config, error) {
 				"mesa-ya.auth.user-roles-updated",
 				"mesa-ya.auth.role-permissions-updated",
 			},
+			"owners": {
+				"mesa-ya.auth.user-signed-up",
+				"mesa-ya.auth.user-logged-in",
+				"mesa-ya.auth.user-roles-updated",
+				"mesa-ya.auth.role-permissions-updated",
+			},
 			"owner-upgrade": {
 				"mesa-ya.owner-upgrade.status-changed",
 			},

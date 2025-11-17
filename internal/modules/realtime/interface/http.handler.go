@@ -69,6 +69,8 @@ var entityPolicies = map[string]entityPolicy{
 	"subscriptions":      newEntityPolicy(roleAdmin, roleOwner),
 	"subscription-plans": newEntityPolicy(roleAdmin, roleOwner, roleUser),
 	"auth-users":         newEntityPolicy(roleAdmin),
+	"owners":             newEntityPolicy(roleAdmin),
+	"owner-upgrade":      newEntityPolicy(roleAdmin),
 }
 
 func isEntityAccessAllowed(entity string, claims *auth.Claims) bool {
@@ -323,6 +325,8 @@ var entityHandlers = func() map[string]commandHandlerFactory {
 		{entity: "subscriptions", plural: "subscriptions", singular: "subscription"},
 		{entity: "subscription-plans", plural: "subscription_plans", singular: "subscription_plan"},
 		{entity: "auth-users", plural: "auth_users", singular: "auth_user"},
+		{entity: "owners", plural: "owners", singular: "owner"},
+		{entity: "owner-upgrade", plural: "owner_upgrade_requests", singular: "owner_upgrade_request"},
 	}
 	for _, cfg := range configs {
 		handlers[cfg.entity] = newGenericCommandHandler(cfg.entity, cfg.plural, cfg.singular)
@@ -390,6 +394,10 @@ func normalizeEntity(raw string) string {
 		return "auth-users"
 	case "authuser", "authusers", "auth":
 		return "auth-users"
+	case "owner", "owners":
+		return "owners"
+	case "owner-upgrade", "owner-upgrades", "owner_upgrade", "owner_upgrades", "ownerupgrade", "ownerupgrades":
+		return "owner-upgrade"
 	default:
 		return trimmed
 	}
