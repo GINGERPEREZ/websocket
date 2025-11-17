@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -32,7 +33,7 @@ func (m *mockSnapshotFetcher) FetchEntityDetail(ctx context.Context, token, enti
 func TestConnectSectionUseCase_HandleListCommandSuccess(t *testing.T) {
 	t.Parallel()
 
-	inputQuery := newPagedQuery(0, 0, "  sushi  ", "  name  ", " desc ")
+	inputQuery := newPagedQuery(0, 0, "  sushi  ", "  name  ", " desc ", map[string]string{"status": "pending"})
 	normalizedQuery := inputQuery.Normalize("section-1")
 	snapshot := &domain.SectionSnapshot{Payload: map[string]string{"ok": "yes"}}
 
@@ -46,7 +47,7 @@ func TestConnectSectionUseCase_HandleListCommandSuccess(t *testing.T) {
 		if sectionID != "section-1" {
 			t.Fatalf("unexpected section id: %s", sectionID)
 		}
-		if query != normalizedQuery {
+		if !reflect.DeepEqual(query, normalizedQuery) {
 			t.Fatalf("unexpected query: %#v", query)
 		}
 		return snapshot, nil
@@ -91,6 +92,9 @@ func TestConnectSectionUseCase_HandleListCommandSuccess(t *testing.T) {
 	}
 	if got := msg.Metadata["sortOrder"]; got != "DESC" {
 		t.Fatalf("metadata sortOrder mismatch: %s", got)
+	}
+	if got := msg.Metadata["status"]; got != "pending" {
+		t.Fatalf("metadata filter mismatch: %s", got)
 	}
 }
 

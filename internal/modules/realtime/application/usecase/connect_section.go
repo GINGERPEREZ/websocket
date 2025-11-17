@@ -204,7 +204,7 @@ func (uc *ConnectSectionUseCase) refreshItem(ctx context.Context, scope, section
 }
 
 func (uc *ConnectSectionUseCase) HandleListEntityCommand(ctx context.Context, token, sectionID string, command domain.ListEntityCommand, entity string) (*domain.Message, error) {
-	return uc.handleListCommand(ctx, token, sectionID, entity, newPagedQuery(command.Page, command.Limit, command.Search, command.SortBy, command.SortOrder))
+	return uc.handleListCommand(ctx, token, sectionID, entity, newPagedQuery(command.Page, command.Limit, command.Search, command.SortBy, command.SortOrder, command.Filters))
 }
 
 func (uc *ConnectSectionUseCase) HandleGetEntityCommand(ctx context.Context, token, sectionID string, command domain.GetEntityCommand, entity string) (*domain.Message, error) {
@@ -247,12 +247,13 @@ func (uc *ConnectSectionUseCase) handleDetailCommand(
 	return message, nil
 }
 
-func newPagedQuery(page, limit int, search, sortBy, sortOrder string) domain.PagedQuery {
+func newPagedQuery(page, limit int, search, sortBy, sortOrder string, filters map[string]string) domain.PagedQuery {
 	return domain.PagedQuery{
 		Page:      page,
 		Limit:     limit,
 		Search:    search,
 		SortBy:    sortBy,
 		SortOrder: sortOrder,
+		Filters:   filters,
 	}
 }

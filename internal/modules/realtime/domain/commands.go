@@ -7,6 +7,7 @@ type ListEntityCommand struct {
 	Search    string `json:"search"`
 	SortBy    string `json:"sortBy"`
 	SortOrder string `json:"sortOrder"`
+	Filters   map[string]string `json:"filters,omitempty"`
 }
 
 // GetEntityCommand represents the generic payload for retrieving a resource by identifier.

@@ -2,6 +2,7 @@ package domain
 
 import (
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -13,6 +14,7 @@ type PagedQuery struct {
 	Search    string
 	SortBy    string
 	SortOrder string
+	Filters   map[string]string
 }
 
 // Normalize returns a sanitized copy applying defaults and bounds. defaultSearch is used when
@@ -37,6 +39,10 @@ func (q PagedQuery) Normalize(defaultSearch string) PagedQuery {
 	normalized.SortBy = strings.TrimSpace(normalized.SortBy)
 	normalized.SortOrder = strings.ToUpper(strings.TrimSpace(normalized.SortOrder))
 
+	if len(normalized.Filters) > 0 {
+		normalized.Filters = sanitizeFilters(normalized.Filters)
+	}
+
 	return normalized
 }
 
@@ -46,9 +52,10 @@ func (q PagedQuery) CanonicalKey() string {
 	search := strings.ToLower(strings.TrimSpace(normalized.Search))
 	sortBy := strings.ToLower(strings.TrimSpace(normalized.SortBy))
 	sortOrder := strings.ToUpper(strings.TrimSpace(normalized.SortOrder))
+	filtersKey := canonicalFiltersKey(normalized.Filters)
 
 	var builder strings.Builder
-	builder.Grow(len(search) + len(sortBy) + len(sortOrder) + 32)
+	builder.Grow(len(search) + len(sortBy) + len(sortOrder) + len(filtersKey) + 32)
 	builder.WriteString("page=")
 	builder.WriteString(strconv.Itoa(normalized.Page))
 	builder.WriteString("&limit=")
@@ -59,6 +66,10 @@ func (q PagedQuery) CanonicalKey() string {
 	builder.WriteString(sortBy)
 	builder.WriteString("&sortOrder=")
 	builder.WriteString(sortOrder)
+	if filtersKey != "" {
+		builder.WriteString("&filters=")
+		builder.WriteString(filtersKey)
+	}
 
 	return builder.String()
 }
@@ -80,6 +91,9 @@ func (q PagedQuery) Metadata(sectionID string) map[string]string {
 	if normalized.SortOrder != "" {
 		metadata["sortOrder"] = normalized.SortOrder
 	}
+	for key, value := range normalized.Filters {
+		metadata[key] = value
+	}
 	return metadata
 }
 
@@ -98,5 +112,48 @@ func (q PagedQuery) ToURLValues(defaultSearch string) url.Values {
 	if normalized.SortOrder != "" {
 		values.Set("sortOrder", normalized.SortOrder)
 	}
+	for key, value := range normalized.Filters {
+		values.Set(key, value)
+	}
 	return values
+}
+
+func sanitizeFilters(filters map[string]string) map[string]string {
+	if len(filters) == 0 {
+		return nil
+	}
+	sanitized := make(map[string]string, len(filters))
+	for key, value := range filters {
+		trimmedKey := strings.TrimSpace(key)
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedKey == "" || trimmedValue == "" {
+			continue
+		}
+		sanitized[strings.ToLower(trimmedKey)] = trimmedValue
+	}
+	if len(sanitized) == 0 {
+		return nil
+	}
+	return sanitized
+}
+
+func canonicalFiltersKey(filters map[string]string) string {
+	if len(filters) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(filters))
+	for key := range filters {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	var builder strings.Builder
+	for index, key := range keys {
+		if index > 0 {
+			builder.WriteString(";")
+		}
+		builder.WriteString(key)
+		builder.WriteString("=")
+		builder.WriteString(filters[key])
+	}
+	return builder.String()
 }
