@@ -6,13 +6,14 @@ import (
 )
 
 // BuildListMessage composes a realtime message for list operations using typed metadata when available.
-func BuildListMessage(entity, sectionID string, snapshot *SectionSnapshot, query PagedQuery, at time.Time) *Message {
+func BuildListMessage(entity, sectionID string, snapshot *SectionSnapshot, query PagedQuery, at time.Time, extras Metadata) *Message {
 	if snapshot == nil {
 		return nil
 	}
 
 	metadata := query.Metadata(sectionID)
 	metadata = mergeInto(metadata, snapshot.ListMetadata)
+	metadata = mergeInto(metadata, extras)
 
 	entityName := strings.TrimSpace(entity)
 	return &Message{
@@ -27,7 +28,7 @@ func BuildListMessage(entity, sectionID string, snapshot *SectionSnapshot, query
 }
 
 // BuildDetailMessage composes a realtime message for detail operations reusing typed restaurant data.
-func BuildDetailMessage(entity, sectionID, restaurantID string, snapshot *SectionSnapshot, at time.Time) *Message {
+func BuildDetailMessage(entity, sectionID, restaurantID string, snapshot *SectionSnapshot, at time.Time, extras Metadata) *Message {
 	if snapshot == nil {
 		return nil
 	}
@@ -48,6 +49,7 @@ func BuildDetailMessage(entity, sectionID, restaurantID string, snapshot *Sectio
 	}
 
 	metadata = mergeInto(metadata, snapshot.DetailMetadata)
+	metadata = mergeInto(metadata, extras)
 
 	return &Message{
 		Topic:      DetailTopic(entityName),

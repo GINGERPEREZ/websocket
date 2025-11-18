@@ -88,8 +88,12 @@ func (uc *ConnectSectionUseCase) RefreshAllSections(ctx context.Context, entity 
 }
 
 func (uc *ConnectSectionUseCase) listScope(ctx context.Context, scope, token, sectionID string, params domain.PagedQuery) (*domain.SectionSnapshot, domain.PagedQuery, error) {
-	options := params.Normalize(sectionID)
+	options := params.Normalize("")
 	queryKey := options.CanonicalKey()
+	if cached, ok := uc.cache.get(sectionID, scope, cacheKindList, options, ""); ok && cached.snapshot != nil {
+		slog.Debug("connect-section list served from cache", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("queryKey", queryKey), slog.Time("fetchedAt", cached.fetchedAt))
+		return cached.snapshot, options, nil
+	}
 	slog.Debug("connect-section list request", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("queryKey", queryKey))
 
 	snapshot, err := uc.SnapshotFetcher.FetchEntityList(ctx, token, scope, sectionID, options)
@@ -119,6 +123,10 @@ func (uc *ConnectSectionUseCase) getScope(ctx context.Context, scope, token, sec
 	resource := strings.TrimSpace(resourceID)
 	if resource == "" {
 		return nil, port.ErrSnapshotNotFound
+	}
+	if cached, ok := uc.cache.get(sectionID, scope, cacheKindItem, domain.PagedQuery{}, resource); ok && cached.snapshot != nil {
+		slog.Debug("connect-section detail served from cache", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("resourceId", resource), slog.Time("fetchedAt", cached.fetchedAt))
+		return cached.snapshot, nil
 	}
 	slog.Debug("connect-section detail request", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("resourceId", resource))
 
@@ -164,7 +172,7 @@ func (uc *ConnectSectionUseCase) refreshList(ctx context.Context, scope, section
 		uc.cache.set(sectionID, scope, cacheKindList, options, "", entry.token, snapshot)
 	}
 
-	message := domain.BuildListMessage(scope, sectionID, snapshot, options, time.Now().UTC())
+	message := domain.BuildListMessage(scope, sectionID, snapshot, options, time.Now().UTC(), domain.Metadata{"origin": "refresh"})
 	if message == nil {
 		slog.Debug("connect-section refresh list skipped", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("queryKey", queryKey))
 		return
@@ -194,7 +202,7 @@ func (uc *ConnectSectionUseCase) refreshItem(ctx context.Context, scope, section
 		uc.cache.set(sectionID, scope, cacheKindItem, domain.PagedQuery{}, entry.resourceID, entry.token, snapshot)
 	}
 
-	message := domain.BuildDetailMessage(scope, sectionID, entry.resourceID, snapshot, time.Now().UTC())
+	message := domain.BuildDetailMessage(scope, sectionID, entry.resourceID, snapshot, time.Now().UTC(), domain.Metadata{"origin": "refresh"})
 	if message == nil {
 		slog.Debug("connect-section refresh detail skipped", slog.String("sectionId", sectionID), slog.String("scope", scope), slog.String("resourceId", entry.resourceID))
 		return
@@ -220,7 +228,7 @@ func (uc *ConnectSectionUseCase) handleListCommand(
 	if err != nil {
 		return nil, err
 	}
-	message := domain.BuildListMessage(entity, sectionID, snapshot, normalized, time.Now().UTC())
+	message := domain.BuildListMessage(entity, sectionID, snapshot, normalized, time.Now().UTC(), domain.Metadata{"origin": "request"})
 	if message == nil {
 		return nil, port.ErrSnapshotNotFound
 	}
@@ -240,7 +248,7 @@ func (uc *ConnectSectionUseCase) handleDetailCommand(
 	if err != nil {
 		return nil, err
 	}
-	message := domain.BuildDetailMessage(entity, sectionID, resourceID, snapshot, time.Now().UTC())
+	message := domain.BuildDetailMessage(entity, sectionID, resourceID, snapshot, time.Now().UTC(), domain.Metadata{"origin": "request"})
 	if message == nil {
 		return nil, port.ErrSnapshotNotFound
 	}

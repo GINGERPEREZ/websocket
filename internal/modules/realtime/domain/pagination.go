@@ -76,7 +76,7 @@ func (q PagedQuery) CanonicalKey() string {
 
 // Metadata converts the query into the metadata map used by websocket messages.
 func (q PagedQuery) Metadata(sectionID string) map[string]string {
-	normalized := q.Normalize(sectionID)
+	normalized := q.Normalize("")
 	metadata := map[string]string{
 		"sectionId": strings.TrimSpace(sectionID),
 		"page":      strconv.Itoa(normalized.Page),
@@ -99,7 +99,7 @@ func (q PagedQuery) Metadata(sectionID string) map[string]string {
 
 // ToURLValues returns normalized URL query parameters ready for REST calls.
 func (q PagedQuery) ToURLValues(defaultSearch string) url.Values {
-	normalized := q.Normalize(defaultSearch)
+	normalized := q.Normalize(strings.TrimSpace(defaultSearch))
 	values := url.Values{}
 	values.Set("page", strconv.Itoa(normalized.Page))
 	values.Set("limit", strconv.Itoa(normalized.Limit))

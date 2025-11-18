@@ -41,7 +41,7 @@ func TestBuildDetailMessageIncludesDaysOpenMetadata(t *testing.T) {
 	}
 
 	at := time.Date(2025, time.October, 19, 15, 4, 0, 0, time.UTC)
-	msg := BuildDetailMessage(" restaurant ", "section-1", "rest-1", snapshot, at)
+	msg := BuildDetailMessage(" restaurant ", "section-1", "rest-1", snapshot, at, Metadata{"origin": "refresh"})
 	if msg == nil {
 		t.Fatal("expected message, got nil")
 	}
@@ -135,6 +135,9 @@ func TestBuildDetailMessageIncludesDaysOpenMetadata(t *testing.T) {
 	if md["reservationTableId"] != "table-2" {
 		t.Fatalf("reservationTableId metadata mismatch: %s", md["reservationTableId"])
 	}
+	if md["origin"] != "refresh" {
+		t.Fatalf("origin metadata mismatch: %s", md["origin"])
+	}
 }
 
 func TestBuildListMessageIncludesCounts(t *testing.T) {
@@ -148,7 +151,7 @@ func TestBuildListMessageIncludesCounts(t *testing.T) {
 	query := PagedQuery{Page: 2, Limit: 50, Search: ""}
 	at := time.Date(2025, time.October, 19, 15, 4, 0, 0, time.UTC)
 
-	msg := BuildListMessage(" restaurant ", "section-1", snapshot, query, at)
+	msg := BuildListMessage(" restaurant ", "section-1", snapshot, query, at, Metadata{"origin": "request"})
 	if msg == nil {
 		t.Fatal("expected message, got nil")
 	}
@@ -181,5 +184,8 @@ func TestBuildListMessageIncludesCounts(t *testing.T) {
 	}
 	if md["total"] != "10" {
 		t.Fatalf("total metadata mismatch: %s", md["total"])
+	}
+	if md["origin"] != "request" {
+		t.Fatalf("origin metadata mismatch: %s", md["origin"])
 	}
 }

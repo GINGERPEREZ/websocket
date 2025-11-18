@@ -199,7 +199,7 @@ func (c *SectionSnapshotHTTPClient) performListRequest(ctx context.Context, toke
 		req.Header.Set("Authorization", "Bearer "+trimmed)
 	}
 
-	values := query.ToURLValues(sectionID)
+	values := query.ToURLValues("")
 	for key, value := range extras {
 		trimmedKey := strings.TrimSpace(key)
 		trimmedValue := strings.TrimSpace(value)
