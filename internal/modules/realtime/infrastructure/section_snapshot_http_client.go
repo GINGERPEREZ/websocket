@@ -67,6 +67,10 @@ var entityEndpoints = map[string]entityEndpoint{
 		listPathBuilder:   staticPathBuilder("/api/v1/public/images"),
 		detailPathBuilder: resourcePathBuilder("/api/v1/public/images"),
 	},
+	"owners": {
+		listPathBuilder:   staticPathBuilder("/api/v1/auth/admin/users"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/auth/admin/users"),
+	},
 	"section-objects": {
 		listPathBuilder:   staticPathBuilder("/api/v1/admin/section-objects"),
 		detailPathBuilder: resourcePathBuilder("/api/v1/admin/section-objects"),
@@ -86,6 +90,10 @@ var entityEndpoints = map[string]entityEndpoint{
 	"auth-users": {
 		listPathBuilder:   staticPathBuilder("/api/v1/public/users"),
 		detailPathBuilder: resourcePathBuilder("/api/v1/public/users"),
+	},
+	"owner-upgrade": {
+		listPathBuilder:   staticPathBuilder("/api/v1/owners/upgrade-requests"),
+		detailPathBuilder: resourcePathBuilder("/api/v1/owners/upgrade-requests"),
 	},
 }
 

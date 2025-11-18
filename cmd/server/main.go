@@ -91,9 +91,6 @@ func main() {
 	// Generic entity routes: allow token in path or via query/header fallback
 	e.GET("/ws/:entity/:section/:token", wsHandler)
 	e.GET("/ws/:entity/:section", wsHandler)
-	// Backwards compatible restaurant-specific routes
-	e.GET("/ws/restaurant/:section/:token", wsHandler)
-	e.GET("/ws/restaurant/:section", wsHandler)
 	// Broadcast notifications stream
 	e.GET("/ws/notifications", notificationsHandler)
 	// Analytics websocket endpoints
