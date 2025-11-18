@@ -357,7 +357,7 @@ func newGenericCommandHandler(canonicalEntity, pluralAction, singularAction stri
 	return func(entity, section, token string, claims *auth.Claims, connectUC *usecase.ConnectSectionUseCase) func(context.Context, *infrastructure.Client, infrastructure.Command) {
 		snapshotCtx := port.SnapshotContext{
 			SectionID: strings.TrimSpace(section),
-			Audience: snapshotAudienceFromClaims(claims),
+			Audience:  snapshotAudienceFromClaims(claims),
 		}
 		return func(cmdCtx context.Context, client *infrastructure.Client, cmd infrastructure.Command) {
 			action := strings.ToLower(strings.TrimSpace(cmd.Action))
