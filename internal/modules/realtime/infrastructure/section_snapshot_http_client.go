@@ -104,9 +104,11 @@ var entityEndpoints = map[string]entityEndpoint{
 		ownerVariant: &endpointVariant{
 			listPathBuilder:   staticPathBuilder("/api/v1/restaurant/reservations"),
 			detailPathBuilder: resourcePathBuilder("/api/v1/restaurant/reservations"),
+			sectionQueryKey:   "restaurantId",
 			filterAliases: map[string]string{
 				"status":       "status",
 				"restaurantid": "restaurantId",
+				"ownerid":      "",
 				"date":         "date",
 			},
 		},
@@ -202,6 +204,15 @@ var entityEndpoints = map[string]entityEndpoint{
 		ownerVariant: &endpointVariant{
 			listPathBuilder:   requiredValuePathBuilder("/api/v1/restaurant/payments/restaurant/%s"),
 			detailPathBuilder: resourcePathBuilder("/api/v1/restaurant/payments"),
+		},
+	},
+	"schedules": {
+		defaultVariant: endpointVariant{
+			listPathBuilder:   requiredValuePathBuilder("/api/v1/admin/restaurants/%s/schedules"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/admin/schedules"),
+		},
+		ownerVariant: &endpointVariant{
+			listPathBuilder: requiredValuePathBuilder("/api/v1/restaurant/schedules/restaurant/%s"),
 		},
 	},
 	"subscriptions": {
@@ -487,6 +498,9 @@ func buildQueryValues(query domain.PagedQuery, defaultSearch string, variant end
 		values.Set("sortOrder", normalized.SortOrder)
 	}
 	for key, value := range normalized.Filters {
+		if strings.EqualFold(strings.TrimSpace(key), "ownerId") {
+			continue
+		}
 		mapped := variant.mapFilterKey(key)
 		if mapped == "" {
 			continue

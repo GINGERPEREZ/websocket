@@ -108,6 +108,17 @@ Follow these steps to introduce an entity (e.g. `users`) that should expose real
    - Cover new normalization paths in `interface/http.handler_test.go` and add unit tests for use cases.
    - If REST contracts change, update Swagger or API reference docs.
 
+### Keep owner controllers mapped
+
+Each time the REST API adds or modifies an owner-facing controller (`mesaya_rest/src/features/**/controllers/v1/restaurant-*.controller.ts`), update the `entityEndpoints` catalog inside `internal/modules/realtime/infrastructure/section_snapshot_http_client.go`. The owner variant must:
+
+1. Point `listPathBuilder`/`detailPathBuilder` at the `/api/v1/restaurant/...` routes exposed by Nest.
+2. Provide `sectionQueryKey` when the controller requires `restaurantId` or `sectionId` as a query string instead of a path param.
+3. Define `filterAliases` so websocket filters (`restaurantid`, `sectionid`, `date`, etc.) match the REST query names, while leaving unsupported filters empty to drop them automatically.
+4. Gain a regression test in `section_snapshot_http_client_test.go` that exercises the new owner variant (similar to the reservation smoke test) to ensure list and detail paths, headers, and filter coercion remain correct.
+
+Following this checklist keeps the owner dashboards, websocket snapshot cache, and REST controllers perfectly aligned.
+
 ## Adding New Commands or Actions
 
 1. Expand the entity-specific command handler factory to recognize the new `action` names.
