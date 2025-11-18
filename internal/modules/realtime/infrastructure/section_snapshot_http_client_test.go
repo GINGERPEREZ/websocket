@@ -3,6 +3,7 @@ package infrastructure
 import (
 	"testing"
 
+	"mesaYaWs/internal/modules/realtime/application/port"
 	"mesaYaWs/internal/modules/realtime/domain"
 )
 
@@ -19,13 +20,13 @@ func TestBuildQueryValues_UsesFilterAliases(t *testing.T) {
 		},
 	}
 
-	endpoint := entityEndpoint{
+	variant := endpointVariant{
 		filterAliases: map[string]string{
 			"restaurantid": "restaurantId",
 		},
 	}
 
-	values := buildQueryValues(query, "", endpoint)
+	values := buildQueryValues(query, "", variant)
 
 	if got := values.Get("page"); got != "2" {
 		t.Fatalf("expected page=2, got %s", got)
@@ -50,13 +51,65 @@ func TestBuildQueryValues_UsesFilterAliases(t *testing.T) {
 	}
 }
 
-func TestEntityEndpointMapFilterKey_FallsBackToTrimmedKey(t *testing.T) {
-	endpoint := entityEndpoint{filterAliases: map[string]string{"status": "status"}}
+func TestEndpointVariantMapFilterKey_FallsBackToTrimmedKey(t *testing.T) {
+	variant := endpointVariant{filterAliases: map[string]string{"status": "status"}}
 
-	if got := endpoint.mapFilterKey(" status "); got != "status" {
+	if got := variant.mapFilterKey(" status "); got != "status" {
 		t.Fatalf("expected fallback to same key, got %s", got)
 	}
-	if got := endpoint.mapFilterKey("restaurantId"); got != "restaurantId" {
+	if got := variant.mapFilterKey("restaurantId"); got != "restaurantId" {
 		t.Fatalf("expected original key, got %s", got)
+	}
+}
+
+func TestEntityEndpointsResolveOwnerVariants(t *testing.T) {
+	t.Parallel()
+
+	sections := entityEndpoints["sections"].resolveVariant(port.SnapshotAudienceOwner)
+	listPath, err := sections.listPathBuilder("  restaurant-123  ")
+	if err != nil {
+		t.Fatalf("sections list builder failed: %v", err)
+	}
+	if listPath != "/api/v1/restaurant/sections/restaurant/restaurant-123" {
+		t.Fatalf("unexpected sections list path: %s", listPath)
+	}
+	detailPath, err := sections.detailPathBuilder("  section-9  ")
+	if err != nil {
+		t.Fatalf("sections detail builder failed: %v", err)
+	}
+	if detailPath != "/api/v1/restaurant/sections/section-9" {
+		t.Fatalf("unexpected sections detail path: %s", detailPath)
+	}
+
+	payments := entityEndpoints["payments"].resolveVariant(port.SnapshotAudienceOwner)
+	paymentList, err := payments.listPathBuilder("restaurant-456")
+	if err != nil {
+		t.Fatalf("payments list builder failed: %v", err)
+	}
+	if paymentList != "/api/v1/restaurant/payments/restaurant/restaurant-456" {
+		t.Fatalf("unexpected payments list path: %s", paymentList)
+	}
+	paymentDetail, err := payments.detailPathBuilder(" pay-7 ")
+	if err != nil {
+		t.Fatalf("payments detail builder failed: %v", err)
+	}
+	if paymentDetail != "/api/v1/restaurant/payments/pay-7" {
+		t.Fatalf("unexpected payments detail path: %s", paymentDetail)
+	}
+
+	subscriptions := entityEndpoints["subscriptions"].resolveVariant(port.SnapshotAudienceOwner)
+	subList, err := subscriptions.listPathBuilder(" restaurant-789 ")
+	if err != nil {
+		t.Fatalf("subscriptions list builder failed: %v", err)
+	}
+	if subList != "/api/v1/restaurant/subscriptions/restaurant/restaurant-789" {
+		t.Fatalf("unexpected subscriptions list path: %s", subList)
+	}
+	subDetail, err := subscriptions.detailPathBuilder(" sub-1 ")
+	if err != nil {
+		t.Fatalf("subscriptions detail builder failed: %v", err)
+	}
+	if subDetail != "/api/v1/admin/subscriptions/sub-1" {
+		t.Fatalf("unexpected subscriptions detail path: %s", subDetail)
 	}
 }

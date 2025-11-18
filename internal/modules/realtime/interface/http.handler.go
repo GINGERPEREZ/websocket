@@ -89,6 +89,23 @@ func isEntityAccessAllowed(entity string, claims *auth.Claims) bool {
 	return false
 }
 
+func snapshotAudienceFromClaims(claims *auth.Claims) port.SnapshotAudience {
+	if claims == nil {
+		return port.SnapshotAudienceUser
+	}
+	audience := port.SnapshotAudienceUser
+	for _, role := range claims.Roles {
+		normalized := strings.ToUpper(strings.TrimSpace(role))
+		switch normalized {
+		case roleAdmin:
+			return port.SnapshotAudienceAdmin
+		case roleOwner:
+			audience = port.SnapshotAudienceOwner
+		}
+	}
+	return audience
+}
+
 // NewWebsocketHandler expone /ws/:entity/:section/:token y valida el JWT localmente.
 func NewWebsocketHandler(
 	hub *infrastructure.Hub,
@@ -211,7 +228,7 @@ func NewWebsocketHandler(
 		roles := claims.Roles
 		slog.Info("ws handler upgrade success", slog.String("entity", entity), slog.String("sectionId", section), slog.String("userId", userID), slog.String("sessionId", sessionID), slog.Any("roles", roles))
 
-		commandHandler := factory(entity, section, token, connectUC)
+		commandHandler := factory(entity, section, token, output.Claims, connectUC)
 
 		client := infrastructure.NewClient(hub, conn, userID, sessionID, section, entity, token, 8, commandHandler)
 
@@ -302,7 +319,7 @@ func sendCommandError(client *infrastructure.Client, entity, section, action, re
 	client.SendDomainMessage(message)
 }
 
-type commandHandlerFactory func(entity, section, token string, connectUC *usecase.ConnectSectionUseCase) func(context.Context, *infrastructure.Client, infrastructure.Command)
+type commandHandlerFactory func(entity, section, token string, claims *auth.Claims, connectUC *usecase.ConnectSectionUseCase) func(context.Context, *infrastructure.Client, infrastructure.Command)
 
 var entityHandlers = func() map[string]commandHandlerFactory {
 	handlers := make(map[string]commandHandlerFactory)
@@ -337,14 +354,18 @@ var entityHandlers = func() map[string]commandHandlerFactory {
 func newGenericCommandHandler(canonicalEntity, pluralAction, singularAction string) commandHandlerFactory {
 	normalizedPlural := strings.ToLower(strings.TrimSpace(pluralAction))
 	normalizedSingular := strings.ToLower(strings.TrimSpace(singularAction))
-	return func(entity, section, token string, connectUC *usecase.ConnectSectionUseCase) func(context.Context, *infrastructure.Client, infrastructure.Command) {
+	return func(entity, section, token string, claims *auth.Claims, connectUC *usecase.ConnectSectionUseCase) func(context.Context, *infrastructure.Client, infrastructure.Command) {
+		snapshotCtx := port.SnapshotContext{
+			SectionID: strings.TrimSpace(section),
+			Audience: snapshotAudienceFromClaims(claims),
+		}
 		return func(cmdCtx context.Context, client *infrastructure.Client, cmd infrastructure.Command) {
 			action := strings.ToLower(strings.TrimSpace(cmd.Action))
 			switch action {
 			case "list_" + normalizedPlural, "list", "fetch_all":
-				executeListCommand[domain.ListEntityCommand](cmdCtx, entity, section, token, cmd, client, connectUC.HandleListEntityCommand)
+				executeListCommand[domain.ListEntityCommand](cmdCtx, entity, section, token, snapshotCtx, cmd, client, connectUC.HandleListEntityCommand)
 			case "get_" + normalizedSingular, "detail", "fetch_one":
-				executeDetailCommand[domain.GetEntityCommand](cmdCtx, entity, section, token, cmd, client, connectUC.HandleGetEntityCommand, func(command domain.GetEntityCommand) string {
+				executeDetailCommand[domain.GetEntityCommand](cmdCtx, entity, section, token, snapshotCtx, cmd, client, connectUC.HandleGetEntityCommand, func(command domain.GetEntityCommand) string {
 					return command.ID
 				})
 			default:
@@ -406,9 +427,10 @@ func normalizeEntity(raw string) string {
 func executeListCommand[T any](
 	ctx context.Context,
 	entity, section, token string,
+	snapshotCtx port.SnapshotContext,
 	cmd infrastructure.Command,
 	client *infrastructure.Client,
-	listFn func(context.Context, string, string, T, string) (*domain.Message, error),
+	listFn func(context.Context, string, port.SnapshotContext, T, string) (*domain.Message, error),
 ) {
 	payload, err := decodeCommand[T](cmd.Payload)
 	if err != nil {
@@ -416,7 +438,7 @@ func executeListCommand[T any](
 		sendCommandError(client, entity, section, "list", "invalid payload")
 		return
 	}
-	message, err := listFn(ctx, token, section, payload, entity)
+	message, err := listFn(ctx, token, snapshotCtx, payload, entity)
 	if err != nil {
 		slog.Warn("ws handler list fetch failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
 		sendCommandError(client, entity, section, "list", err.Error())
@@ -428,9 +450,10 @@ func executeListCommand[T any](
 func executeDetailCommand[T any](
 	ctx context.Context,
 	entity, section, token string,
+	snapshotCtx port.SnapshotContext,
 	cmd infrastructure.Command,
 	client *infrastructure.Client,
-	detailFn func(context.Context, string, string, T, string) (*domain.Message, error),
+	detailFn func(context.Context, string, port.SnapshotContext, T, string) (*domain.Message, error),
 	resourceExtractor func(T) string,
 ) {
 	payload, err := decodeCommand[T](cmd.Payload)
@@ -444,7 +467,7 @@ func executeDetailCommand[T any](
 		sendCommandError(client, entity, section, "detail", "invalid payload")
 		return
 	}
-	message, err := detailFn(ctx, token, section, payload, entity)
+	message, err := detailFn(ctx, token, snapshotCtx, payload, entity)
 	if err != nil {
 		slog.Warn("ws handler detail fetch failed", slog.String("entity", entity), slog.String("sectionId", section), slog.String("resourceId", resourceID), slog.Any("error", err))
 		sendCommandError(client, entity, section, "detail", err.Error())

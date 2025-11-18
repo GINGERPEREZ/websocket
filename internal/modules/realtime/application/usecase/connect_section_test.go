@@ -12,22 +12,26 @@ import (
 )
 
 type mockSnapshotFetcher struct {
-	listFn   func(ctx context.Context, token, entity, sectionID string, query domain.PagedQuery) (*domain.SectionSnapshot, error)
-	detailFn func(ctx context.Context, token, entity, resourceID string) (*domain.SectionSnapshot, error)
+	listFn   func(ctx context.Context, token, entity string, snapshotCtx port.SnapshotContext, query domain.PagedQuery) (*domain.SectionSnapshot, error)
+	detailFn func(ctx context.Context, token, entity string, snapshotCtx port.SnapshotContext, resourceID string) (*domain.SectionSnapshot, error)
 }
 
-func (m *mockSnapshotFetcher) FetchEntityList(ctx context.Context, token, entity, sectionID string, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
+func newSnapshotCtx(sectionID string) port.SnapshotContext {
+	return port.SnapshotContext{SectionID: strings.TrimSpace(sectionID), Audience: port.SnapshotAudienceAdmin}
+}
+
+func (m *mockSnapshotFetcher) FetchEntityList(ctx context.Context, token, entity string, snapshotCtx port.SnapshotContext, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
 	if m.listFn == nil {
 		return nil, nil
 	}
-	return m.listFn(ctx, token, entity, sectionID, query)
+	return m.listFn(ctx, token, entity, snapshotCtx, query)
 }
 
-func (m *mockSnapshotFetcher) FetchEntityDetail(ctx context.Context, token, entity, resourceID string) (*domain.SectionSnapshot, error) {
+func (m *mockSnapshotFetcher) FetchEntityDetail(ctx context.Context, token, entity string, snapshotCtx port.SnapshotContext, resourceID string) (*domain.SectionSnapshot, error) {
 	if m.detailFn == nil {
 		return nil, nil
 	}
-	return m.detailFn(ctx, token, entity, resourceID)
+	return m.detailFn(ctx, token, entity, snapshotCtx, resourceID)
 }
 
 func TestConnectSectionUseCase_HandleListCommandSuccess(t *testing.T) {
@@ -36,16 +40,17 @@ func TestConnectSectionUseCase_HandleListCommandSuccess(t *testing.T) {
 	inputQuery := newPagedQuery(0, 0, "  sushi  ", "  name  ", " desc ", map[string]string{"status": "pending"})
 	normalizedQuery := inputQuery.Normalize("")
 	snapshot := &domain.SectionSnapshot{Payload: map[string]string{"ok": "yes"}}
+	snapshotCtx := newSnapshotCtx("section-1")
 
-	fetcher := &mockSnapshotFetcher{listFn: func(ctx context.Context, token, entity, sectionID string, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
+	fetcher := &mockSnapshotFetcher{listFn: func(ctx context.Context, token, entity string, ctxSnapshot port.SnapshotContext, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
 		if token != "token" {
 			t.Fatalf("unexpected token: %s", token)
 		}
 		if entity != "restaurants" {
 			t.Fatalf("unexpected entity: %s", entity)
 		}
-		if sectionID != "section-1" {
-			t.Fatalf("unexpected section id: %s", sectionID)
+		if ctxSnapshot.SectionID != "section-1" {
+			t.Fatalf("unexpected section id: %s", ctxSnapshot.SectionID)
 		}
 		if !reflect.DeepEqual(query, normalizedQuery) {
 			t.Fatalf("unexpected query: %#v", query)
@@ -55,7 +60,7 @@ func TestConnectSectionUseCase_HandleListCommandSuccess(t *testing.T) {
 
 	uc := &ConnectSectionUseCase{SnapshotFetcher: fetcher, cache: newSnapshotCache()}
 
-	msg, err := uc.handleListCommand(context.Background(), "token", "section-1", "restaurants", inputQuery)
+	msg, err := uc.handleListCommand(context.Background(), "token", snapshotCtx, "restaurants", inputQuery)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -105,12 +110,12 @@ func TestConnectSectionUseCase_HandleListCommandError(t *testing.T) {
 	t.Parallel()
 
 	expectedErr := errors.New("fetch failed")
-	fetcher := &mockSnapshotFetcher{listFn: func(ctx context.Context, token, entity, sectionID string, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
+	fetcher := &mockSnapshotFetcher{listFn: func(ctx context.Context, token, entity string, snapshotCtx port.SnapshotContext, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
 		return nil, expectedErr
 	}}
 	uc := &ConnectSectionUseCase{SnapshotFetcher: fetcher, cache: newSnapshotCache()}
 
-	_, err := uc.handleListCommand(context.Background(), "token", "section", "entity", domain.PagedQuery{})
+	_, err := uc.handleListCommand(context.Background(), "token", newSnapshotCtx("section"), "entity", domain.PagedQuery{})
 	if !errors.Is(err, expectedErr) {
 		t.Fatalf("expected %v, got %v", expectedErr, err)
 	}
@@ -119,12 +124,12 @@ func TestConnectSectionUseCase_HandleListCommandError(t *testing.T) {
 func TestConnectSectionUseCase_HandleListCommandSnapshotMissing(t *testing.T) {
 	t.Parallel()
 
-	fetcher := &mockSnapshotFetcher{listFn: func(ctx context.Context, token, entity, sectionID string, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
+	fetcher := &mockSnapshotFetcher{listFn: func(ctx context.Context, token, entity string, snapshotCtx port.SnapshotContext, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
 		return nil, nil
 	}}
 	uc := &ConnectSectionUseCase{SnapshotFetcher: fetcher, cache: newSnapshotCache()}
 
-	_, err := uc.handleListCommand(context.Background(), "token", "section", "entity", domain.PagedQuery{})
+	_, err := uc.handleListCommand(context.Background(), "token", newSnapshotCtx("section"), "entity", domain.PagedQuery{})
 	if !errors.Is(err, port.ErrSnapshotNotFound) {
 		t.Fatalf("expected ErrSnapshotNotFound, got %v", err)
 	}
@@ -137,13 +142,13 @@ func TestConnectSectionUseCase_HandleListCommandServesCache(t *testing.T) {
 	inputQuery := newPagedQuery(0, 0, " sushi ", "", "", nil)
 	normalized := inputQuery.Normalize("")
 
-	uc := &ConnectSectionUseCase{SnapshotFetcher: &mockSnapshotFetcher{listFn: func(ctx context.Context, token, entity, sectionID string, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
+	uc := &ConnectSectionUseCase{SnapshotFetcher: &mockSnapshotFetcher{listFn: func(ctx context.Context, token, entity string, snapshotCtx port.SnapshotContext, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
 		t.Fatal("fetcher should not be called when cache is warm")
 		return nil, nil
 	}}, cache: newSnapshotCache()}
-	uc.cache.set("section-1", "restaurants", cacheKindList, normalized, "", "token", cachedSnapshot)
+	uc.cache.set("section-1", "restaurants", cacheKindList, normalized, "", "token", port.SnapshotAudienceAdmin, cachedSnapshot)
 
-	msg, err := uc.handleListCommand(context.Background(), "token", "section-1", "restaurants", inputQuery)
+	msg, err := uc.handleListCommand(context.Background(), "token", newSnapshotCtx("section-1"), "restaurants", inputQuery)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -163,8 +168,9 @@ func TestConnectSectionUseCase_HandleDetailCommandSuccess(t *testing.T) {
 	t.Parallel()
 
 	snapshot := &domain.SectionSnapshot{Payload: map[string]string{"key": "value"}}
+	snapshotCtx := newSnapshotCtx("section-42")
 
-	fetcher := &mockSnapshotFetcher{detailFn: func(ctx context.Context, token, entity, resourceID string) (*domain.SectionSnapshot, error) {
+	fetcher := &mockSnapshotFetcher{detailFn: func(ctx context.Context, token, entity string, ctxSnapshot port.SnapshotContext, resourceID string) (*domain.SectionSnapshot, error) {
 		if token != "token" {
 			t.Fatalf("unexpected token: %s", token)
 		}
@@ -174,12 +180,15 @@ func TestConnectSectionUseCase_HandleDetailCommandSuccess(t *testing.T) {
 		if strings.TrimSpace(resourceID) != "resource-9" {
 			t.Fatalf("unexpected resource id: %q", resourceID)
 		}
+		if ctxSnapshot.SectionID != "section-42" {
+			t.Fatalf("unexpected section id: %s", ctxSnapshot.SectionID)
+		}
 		return snapshot, nil
 	}}
 
 	uc := &ConnectSectionUseCase{SnapshotFetcher: fetcher, cache: newSnapshotCache()}
 
-	msg, err := uc.handleDetailCommand(context.Background(), "token", " section-42 ", "tables", " resource-9 ")
+	msg, err := uc.handleDetailCommand(context.Background(), "token", snapshotCtx, "tables", " resource-9 ")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -211,12 +220,16 @@ func TestConnectSectionUseCase_HandleDetailCommandError(t *testing.T) {
 	t.Parallel()
 
 	expectedErr := errors.New("boom")
-	fetcher := &mockSnapshotFetcher{detailFn: func(ctx context.Context, token, entity, resourceID string) (*domain.SectionSnapshot, error) {
+	snapshotCtx := newSnapshotCtx("section-7")
+	fetcher := &mockSnapshotFetcher{detailFn: func(ctx context.Context, token, entity string, ctxSnapshot port.SnapshotContext, resourceID string) (*domain.SectionSnapshot, error) {
+		if ctxSnapshot.SectionID != "section-7" {
+			t.Fatalf("unexpected section id: %s", ctxSnapshot.SectionID)
+		}
 		return nil, expectedErr
 	}}
 	uc := &ConnectSectionUseCase{SnapshotFetcher: fetcher, cache: newSnapshotCache()}
 
-	_, err := uc.handleDetailCommand(context.Background(), "token", "section", "entity", "resource")
+	_, err := uc.handleDetailCommand(context.Background(), "token", snapshotCtx, "entity", "resource")
 	if !errors.Is(err, expectedErr) {
 		t.Fatalf("expected %v, got %v", expectedErr, err)
 	}
@@ -225,13 +238,13 @@ func TestConnectSectionUseCase_HandleDetailCommandError(t *testing.T) {
 func TestConnectSectionUseCase_HandleDetailCommandMissingResource(t *testing.T) {
 	t.Parallel()
 
-	fetcher := &mockSnapshotFetcher{detailFn: func(ctx context.Context, token, entity, resourceID string) (*domain.SectionSnapshot, error) {
+	fetcher := &mockSnapshotFetcher{detailFn: func(ctx context.Context, token, entity string, snapshotCtx port.SnapshotContext, resourceID string) (*domain.SectionSnapshot, error) {
 		t.Fatal("detailFn should not be called when resource is empty")
 		return nil, nil
 	}}
 	uc := &ConnectSectionUseCase{SnapshotFetcher: fetcher, cache: newSnapshotCache()}
 
-	_, err := uc.handleDetailCommand(context.Background(), "token", "section", "entity", "   ")
+	_, err := uc.handleDetailCommand(context.Background(), "token", newSnapshotCtx("section"), "entity", "   ")
 	if !errors.Is(err, port.ErrSnapshotNotFound) {
 		t.Fatalf("expected ErrSnapshotNotFound, got %v", err)
 	}
@@ -241,13 +254,14 @@ func TestConnectSectionUseCase_HandleDetailCommandServesCache(t *testing.T) {
 	t.Parallel()
 
 	cachedSnapshot := &domain.SectionSnapshot{Payload: map[string]string{"source": "cache"}}
-	uc := &ConnectSectionUseCase{SnapshotFetcher: &mockSnapshotFetcher{detailFn: func(ctx context.Context, token, entity, resourceID string) (*domain.SectionSnapshot, error) {
+	snapshotCtx := newSnapshotCtx("section-1")
+	uc := &ConnectSectionUseCase{SnapshotFetcher: &mockSnapshotFetcher{detailFn: func(ctx context.Context, token, entity string, snapshotCtx port.SnapshotContext, resourceID string) (*domain.SectionSnapshot, error) {
 		t.Fatal("fetcher should not be called when cache is warm")
 		return nil, nil
 	}}, cache: newSnapshotCache()}
-	uc.cache.set("section-1", "restaurants", cacheKindItem, domain.PagedQuery{}, "resource-9", "token", cachedSnapshot)
+	uc.cache.set("section-1", "restaurants", cacheKindItem, domain.PagedQuery{}, "resource-9", "token", snapshotCtx.Audience, cachedSnapshot)
 
-	msg, err := uc.handleDetailCommand(context.Background(), "token", "section-1", "restaurants", "resource-9")
+	msg, err := uc.handleDetailCommand(context.Background(), "token", snapshotCtx, "restaurants", "resource-9")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

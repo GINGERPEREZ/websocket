@@ -25,123 +25,228 @@ type SectionSnapshotHTTPClient struct {
 
 type pathBuilder func(string) (string, error)
 
-type entityEndpoint struct {
+type endpointVariant struct {
 	listPathBuilder   pathBuilder
 	detailPathBuilder pathBuilder
 	sectionQueryKey   string
 	filterAliases     map[string]string
 }
 
+type entityEndpoint struct {
+	defaultVariant endpointVariant
+	ownerVariant   *endpointVariant
+}
+
+func (e entityEndpoint) resolveVariant(audience port.SnapshotAudience) endpointVariant {
+	variant := e.defaultVariant
+	if audience == port.SnapshotAudienceOwner && e.ownerVariant != nil {
+		variant = mergeVariants(variant, *e.ownerVariant)
+	}
+	return variant
+}
+
+func mergeVariants(base, override endpointVariant) endpointVariant {
+	result := base
+	if override.listPathBuilder != nil {
+		result.listPathBuilder = override.listPathBuilder
+	}
+	if override.detailPathBuilder != nil {
+		result.detailPathBuilder = override.detailPathBuilder
+	}
+	if strings.TrimSpace(override.sectionQueryKey) != "" {
+		result.sectionQueryKey = override.sectionQueryKey
+	}
+	if override.filterAliases != nil {
+		result.filterAliases = override.filterAliases
+	}
+	return result
+}
+
 var entityEndpoints = map[string]entityEndpoint{
 	"restaurants": {
-		listPathBuilder:   staticPathBuilder("/api/v1/admin/restaurants"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/admin/restaurants"),
+		defaultVariant: endpointVariant{
+			listPathBuilder:   staticPathBuilder("/api/v1/admin/restaurants"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/admin/restaurants"),
+		},
+		ownerVariant: &endpointVariant{
+			listPathBuilder:   staticPathBuilder("/api/v1/restaurant/me"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/restaurant"),
+		},
 	},
 	"tables": {
-		listPathBuilder:   staticPathBuilder("/api/v1/admin/tables"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/admin/tables"),
-		filterAliases: map[string]string{
-			"restaurantid": "restaurantId",
-			"sectionid":    "sectionId",
+		defaultVariant: endpointVariant{
+			listPathBuilder:   staticPathBuilder("/api/v1/admin/tables"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/admin/tables"),
+			filterAliases: map[string]string{
+				"restaurantid": "restaurantId",
+				"sectionid":    "sectionId",
+			},
+		},
+		ownerVariant: &endpointVariant{
+			listPathBuilder:   requiredValuePathBuilder("/api/v1/restaurant/tables/section/%s"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/restaurant/tables"),
+			filterAliases: map[string]string{
+				"restaurantid": "restaurantId",
+				"sectionid":    "sectionId",
+			},
 		},
 	},
 	"reservations": {
-		listPathBuilder:   staticPathBuilder("/api/v1/admin/reservations"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/admin/reservations"),
-		filterAliases: map[string]string{
-			"status":       "status",
-			"restaurantid": "restaurantId",
-			"date":         "date",
+		defaultVariant: endpointVariant{
+			listPathBuilder:   staticPathBuilder("/api/v1/admin/reservations"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/admin/reservations"),
+			filterAliases: map[string]string{
+				"status":       "status",
+				"restaurantid": "restaurantId",
+				"date":         "date",
+			},
+		},
+		ownerVariant: &endpointVariant{
+			listPathBuilder:   staticPathBuilder("/api/v1/restaurant/reservations"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/restaurant/reservations"),
+			filterAliases: map[string]string{
+				"status":       "status",
+				"restaurantid": "restaurantId",
+				"date":         "date",
+			},
 		},
 	},
 	"reviews": {
-		listPathBuilder:   staticPathBuilder("/api/v1/admin/reviews"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/admin/reviews"),
+		defaultVariant: endpointVariant{
+			listPathBuilder:   staticPathBuilder("/api/v1/admin/reviews"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/admin/reviews"),
+		},
 	},
 	"sections": {
-		listPathBuilder:   staticPathBuilder("/api/v1/admin/sections"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/admin/sections"),
-		filterAliases: map[string]string{
-			"restaurantid": "restaurantId",
+		defaultVariant: endpointVariant{
+			listPathBuilder:   staticPathBuilder("/api/v1/admin/sections"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/admin/sections"),
+			filterAliases: map[string]string{
+				"restaurantid": "restaurantId",
+			},
+		},
+		ownerVariant: &endpointVariant{
+			listPathBuilder:   requiredValuePathBuilder("/api/v1/restaurant/sections/restaurant/%s"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/restaurant/sections"),
+			filterAliases: map[string]string{
+				"restaurantid": "restaurantId",
+			},
 		},
 	},
 	"objects": {
-		listPathBuilder:   staticPathBuilder("/api/v1/admin/objects"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/admin/objects"),
+		defaultVariant: endpointVariant{
+			listPathBuilder:   staticPathBuilder("/api/v1/admin/objects"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/admin/objects"),
+		},
 	},
 	"menus": {
-		listPathBuilder:   staticPathBuilder("/api/v1/admin/menus"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/admin/menus"),
-		filterAliases: map[string]string{
-			"restaurantid": "restaurantId",
+		defaultVariant: endpointVariant{
+			listPathBuilder:   staticPathBuilder("/api/v1/admin/menus"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/admin/menus"),
+			filterAliases: map[string]string{
+				"restaurantid": "restaurantId",
+			},
 		},
 	},
 	"dishes": {
-		listPathBuilder:   staticPathBuilder("/api/v1/admin/dishes"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/admin/dishes"),
-		filterAliases: map[string]string{
-			"restaurantid": "restaurantId",
+		defaultVariant: endpointVariant{
+			listPathBuilder:   staticPathBuilder("/api/v1/admin/dishes"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/admin/dishes"),
+			filterAliases: map[string]string{
+				"restaurantid": "restaurantId",
+			},
 		},
 	},
 	"images": {
-		listPathBuilder:   staticPathBuilder("/api/v1/admin/images"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/admin/images"),
-		filterAliases: map[string]string{
-			"entityid": "entityId",
+		defaultVariant: endpointVariant{
+			listPathBuilder:   staticPathBuilder("/api/v1/admin/images"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/admin/images"),
+			filterAliases: map[string]string{
+				"entityid": "entityId",
+			},
 		},
 	},
 	"owners": {
-		listPathBuilder:   staticPathBuilder("/api/v1/auth/admin/users"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/auth/admin/users"),
-		filterAliases: map[string]string{
-			"status":       "status",
-			"role":         "role",
-			"restaurantid": "restaurantId",
-			"active":       "active",
+		defaultVariant: endpointVariant{
+			listPathBuilder:   staticPathBuilder("/api/v1/auth/admin/users"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/auth/admin/users"),
+			filterAliases: map[string]string{
+				"status":       "status",
+				"role":         "role",
+				"restaurantid": "restaurantId",
+				"active":       "active",
+			},
 		},
 	},
 	"section-objects": {
-		listPathBuilder:   staticPathBuilder("/api/v1/admin/section-objects"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/admin/section-objects"),
+		defaultVariant: endpointVariant{
+			listPathBuilder:   staticPathBuilder("/api/v1/admin/section-objects"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/admin/section-objects"),
+		},
 	},
 	"payments": {
-		listPathBuilder:   staticPathBuilder("/api/v1/admin/payments"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/admin/payments"),
-		filterAliases: map[string]string{
-			"status":        "status",
-			"type":          "type",
-			"reservationid": "reservationId",
-			"restaurantid":  "restaurantId",
-			"startdate":     "startDate",
-			"enddate":       "endDate",
-			"minamount":     "minAmount",
-			"maxamount":     "maxAmount",
+		defaultVariant: endpointVariant{
+			listPathBuilder:   staticPathBuilder("/api/v1/admin/payments"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/admin/payments"),
+			filterAliases: map[string]string{
+				"status":        "status",
+				"type":          "type",
+				"reservationid": "reservationId",
+				"restaurantid":  "restaurantId",
+				"startdate":     "startDate",
+				"enddate":       "endDate",
+				"minamount":     "minAmount",
+				"maxamount":     "maxAmount",
+			},
+		},
+		ownerVariant: &endpointVariant{
+			listPathBuilder:   requiredValuePathBuilder("/api/v1/restaurant/payments/restaurant/%s"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/restaurant/payments"),
 		},
 	},
 	"subscriptions": {
-		listPathBuilder:   staticPathBuilder("/api/v1/admin/subscriptions"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/admin/subscriptions"),
+		defaultVariant: endpointVariant{
+			listPathBuilder:   staticPathBuilder("/api/v1/admin/subscriptions"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/admin/subscriptions"),
+		},
+		ownerVariant: &endpointVariant{
+			listPathBuilder: requiredValuePathBuilder("/api/v1/restaurant/subscriptions/restaurant/%s"),
+		},
 	},
 	"subscription-plans": {
-		listPathBuilder:   staticPathBuilder("/api/v1/admin/subscription-plans"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/admin/subscription-plans"),
+		defaultVariant: endpointVariant{
+			listPathBuilder:   staticPathBuilder("/api/v1/admin/subscription-plans"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/admin/subscription-plans"),
+		},
 	},
 	"auth-users": {
-		listPathBuilder:   staticPathBuilder("/api/v1/auth/admin/users"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/auth/admin/users"),
-		filterAliases: map[string]string{
-			"status":       "status",
-			"role":         "role",
-			"restaurantid": "restaurantId",
-			"active":       "active",
+		defaultVariant: endpointVariant{
+			listPathBuilder:   staticPathBuilder("/api/v1/auth/admin/users"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/auth/admin/users"),
+			filterAliases: map[string]string{
+				"status":       "status",
+				"role":         "role",
+				"restaurantid": "restaurantId",
+				"active":       "active",
+			},
+		},
+		ownerVariant: &endpointVariant{
+			filterAliases: map[string]string{
+				"status":       "status",
+				"role":         "role",
+				"restaurantid": "restaurantId",
+				"active":       "active",
+			},
 		},
 	},
 	"owner-upgrade": {
-		listPathBuilder:   staticPathBuilder("/api/v1/owners/upgrade-requests"),
-		detailPathBuilder: resourcePathBuilder("/api/v1/owners/upgrade-requests"),
-		filterAliases: map[string]string{
-			"status": "status",
-			"userid": "userId",
+		defaultVariant: endpointVariant{
+			listPathBuilder:   staticPathBuilder("/api/v1/owners/upgrade-requests"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/owners/upgrade-requests"),
+			filterAliases: map[string]string{
+				"status": "status",
+				"userid": "userId",
+			},
 		},
 	},
 }
@@ -182,14 +287,15 @@ func NewSectionSnapshotHTTPClient(baseURL string, timeout time.Duration, client 
 	return &SectionSnapshotHTTPClient{rest: NewRESTClient(baseURL, timeout, client), timeout: timeoutOrDefault(timeout)}
 }
 
-func (c *SectionSnapshotHTTPClient) FetchEntityList(ctx context.Context, token, entity, sectionID string, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
+func (c *SectionSnapshotHTTPClient) FetchEntityList(ctx context.Context, token, entity string, snapshotCtx port.SnapshotContext, query domain.PagedQuery) (*domain.SectionSnapshot, error) {
 	endpoint, ok := entityEndpoints[strings.ToLower(strings.TrimSpace(entity))]
-	if !ok || endpoint.listPathBuilder == nil {
+	variant := endpoint.resolveVariant(snapshotCtx.Audience)
+	if !ok || variant.listPathBuilder == nil {
 		slog.Warn("snapshot list entity unsupported", slog.String("entity", entity))
 		return nil, port.ErrSnapshotUnsupported
 	}
 
-	sectionID = strings.TrimSpace(sectionID)
+	sectionID := strings.TrimSpace(snapshotCtx.SectionID)
 	if sectionID == "" {
 		return nil, port.ErrSnapshotNotFound
 	}
@@ -201,23 +307,24 @@ func (c *SectionSnapshotHTTPClient) FetchEntityList(ctx context.Context, token, 
 		defer cancel()
 	}
 
-	listPath, err := endpoint.listPathBuilder(sectionID)
+	listPath, err := variant.listPathBuilder(sectionID)
 	if err != nil {
 		slog.Warn("snapshot list path build failed", slog.String("entity", entity), slog.String("sectionId", sectionID), slog.Any("error", err))
 		return nil, err
 	}
 
 	extraQuery := map[string]string{}
-	if key := strings.TrimSpace(endpoint.sectionQueryKey); key != "" {
+	if key := strings.TrimSpace(variant.sectionQueryKey); key != "" {
 		extraQuery[key] = sectionID
 	}
 
-	return c.performListRequest(ctx, token, listPath, sectionID, query, extraQuery, endpoint)
+	return c.performListRequest(ctx, token, listPath, sectionID, query, extraQuery, variant)
 }
 
-func (c *SectionSnapshotHTTPClient) FetchEntityDetail(ctx context.Context, token, entity, resourceID string) (*domain.SectionSnapshot, error) {
+func (c *SectionSnapshotHTTPClient) FetchEntityDetail(ctx context.Context, token, entity string, snapshotCtx port.SnapshotContext, resourceID string) (*domain.SectionSnapshot, error) {
 	endpoint, ok := entityEndpoints[strings.ToLower(strings.TrimSpace(entity))]
-	if !ok || endpoint.detailPathBuilder == nil {
+	variant := endpoint.resolveVariant(snapshotCtx.Audience)
+	if !ok || variant.detailPathBuilder == nil {
 		slog.Warn("snapshot detail entity unsupported", slog.String("entity", entity))
 		return nil, port.ErrSnapshotUnsupported
 	}
@@ -235,7 +342,7 @@ func (c *SectionSnapshotHTTPClient) FetchEntityDetail(ctx context.Context, token
 		defer cancel()
 	}
 
-	detailPath, err := endpoint.detailPathBuilder(resource)
+	detailPath, err := variant.detailPathBuilder(resource)
 	if err != nil {
 		slog.Warn("snapshot detail path build failed", slog.String("entity", entity), slog.String("resourceId", resource), slog.Any("error", err))
 		return nil, err
@@ -244,7 +351,7 @@ func (c *SectionSnapshotHTTPClient) FetchEntityDetail(ctx context.Context, token
 	return c.performDetailRequest(ctx, token, detailPath)
 }
 
-func (c *SectionSnapshotHTTPClient) performListRequest(ctx context.Context, token, path, sectionID string, query domain.PagedQuery, extras map[string]string, endpoint entityEndpoint) (*domain.SectionSnapshot, error) {
+func (c *SectionSnapshotHTTPClient) performListRequest(ctx context.Context, token, path, sectionID string, query domain.PagedQuery, extras map[string]string, variant endpointVariant) (*domain.SectionSnapshot, error) {
 	req, err := c.rest.NewRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		slog.Error("snapshot request build failed", slog.String("sectionId", sectionID), slog.String("path", path), slog.Any("error", err))
@@ -256,7 +363,7 @@ func (c *SectionSnapshotHTTPClient) performListRequest(ctx context.Context, toke
 		req.Header.Set("Authorization", "Bearer "+trimmed)
 	}
 
-	values := buildQueryValues(query, "", endpoint)
+	values := buildQueryValues(query, "", variant)
 	for key, value := range extras {
 		trimmedKey := strings.TrimSpace(key)
 		trimmedValue := strings.TrimSpace(value)
@@ -350,22 +457,22 @@ func normalizeSnapshotPayload(payload interface{}) map[string]any {
 	}
 }
 
-func (e entityEndpoint) mapFilterKey(key string) string {
+func (v endpointVariant) mapFilterKey(key string) string {
 	trimmed := strings.TrimSpace(key)
 	if trimmed == "" {
 		return ""
 	}
-	if len(e.filterAliases) == 0 {
+	if len(v.filterAliases) == 0 {
 		return trimmed
 	}
-	aliased, ok := e.filterAliases[strings.ToLower(trimmed)]
+	aliased, ok := v.filterAliases[strings.ToLower(trimmed)]
 	if !ok {
 		return trimmed
 	}
 	return strings.TrimSpace(aliased)
 }
 
-func buildQueryValues(query domain.PagedQuery, defaultSearch string, endpoint entityEndpoint) url.Values {
+func buildQueryValues(query domain.PagedQuery, defaultSearch string, variant endpointVariant) url.Values {
 	normalized := query.Normalize(strings.TrimSpace(defaultSearch))
 	values := url.Values{}
 	values.Set("page", strconv.Itoa(normalized.Page))
@@ -380,7 +487,7 @@ func buildQueryValues(query domain.PagedQuery, defaultSearch string, endpoint en
 		values.Set("sortOrder", normalized.SortOrder)
 	}
 	for key, value := range normalized.Filters {
-		mapped := endpoint.mapFilterKey(key)
+		mapped := variant.mapFilterKey(key)
 		if mapped == "" {
 			continue
 		}

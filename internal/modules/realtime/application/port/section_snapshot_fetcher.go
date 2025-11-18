@@ -13,7 +13,20 @@ var (
 	ErrSnapshotUnsupported = errors.New("section snapshot entity unsupported")
 )
 
+type SnapshotAudience string
+
+const (
+	SnapshotAudienceAdmin SnapshotAudience = "admin"
+	SnapshotAudienceOwner SnapshotAudience = "owner"
+	SnapshotAudienceUser  SnapshotAudience = "user"
+)
+
+type SnapshotContext struct {
+	SectionID string
+	Audience  SnapshotAudience
+}
+
 type SectionSnapshotFetcher interface {
-	FetchEntityList(ctx context.Context, token, entity, sectionID string, query domain.PagedQuery) (*domain.SectionSnapshot, error)
-	FetchEntityDetail(ctx context.Context, token, entity, resourceID string) (*domain.SectionSnapshot, error)
+	FetchEntityList(ctx context.Context, token, entity string, snapshotCtx SnapshotContext, query domain.PagedQuery) (*domain.SectionSnapshot, error)
+	FetchEntityDetail(ctx context.Context, token, entity string, snapshotCtx SnapshotContext, resourceID string) (*domain.SectionSnapshot, error)
 }
