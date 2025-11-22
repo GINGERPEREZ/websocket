@@ -86,7 +86,7 @@ func main() {
 	broker.StartKafkaConsumers(ctx, registry, cfg.Kafka.Brokers, cfg.Kafka.GroupID, topics)
 
 	wsHandler := transport.NewWebsocketHandler(hub, connectUC, cfg.Websocket.DefaultEntity, cfg.Websocket.AllowedActions)
-	notificationsHandler := transport.NewNotificationsWebsocketHandler(hub)
+	notificationsHandler := transport.NewNotificationsWebsocketHandler(hub, validator)
 	analyticsHandler := transport.NewAnalyticsWebsocketHandler(hub, analyticsUC)
 	// Generic entity routes: allow token in path or via query/header fallback
 	e.GET("/ws/:entity/:section/:token", wsHandler)
