@@ -28,6 +28,7 @@ type AnalyticsEndpointConfig struct {
 	PathTemplate       string
 	RequiresIdentifier bool
 	IdentifierParam    string
+	IdentifierAsQuery  bool
 	QueryParams        []string
 	RequireToken       bool
 }
@@ -42,6 +43,9 @@ func (cfg AnalyticsEndpointConfig) BuildPath(identifier string) (string, error) 
 		trimmed := strings.TrimSpace(identifier)
 		if trimmed == "" {
 			return "", ErrAnalyticsMissingIdentifier
+		}
+		if cfg.IdentifierAsQuery {
+			return path, nil
 		}
 		return fmt.Sprintf(path, url.PathEscape(trimmed)), nil
 	}
@@ -166,8 +170,16 @@ func (uc *AnalyticsUseCase) Connect(ctx context.Context, key, token string, requ
 		return nil, err
 	}
 
-	slog.Info("analytics connect fetch", slog.String("key", key), slog.String("entity", cfg.Entity), slog.Any("query", sanitized.Query))
-	snapshot, err := uc.fetcher.Fetch(ctx, trimmedToken, path, sanitized.Query)
+	query := sanitized.Query
+	if cfg.RequiresIdentifier && cfg.IdentifierAsQuery {
+		if query == nil {
+			query = make(map[string]string)
+		}
+		query[cfg.IdentifierParam] = sanitized.Identifier
+	}
+
+	slog.Info("analytics connect fetch", slog.String("key", key), slog.String("entity", cfg.Entity), slog.Any("query", query))
+	snapshot, err := uc.fetcher.Fetch(ctx, trimmedToken, path, query)
 	if err != nil {
 		slog.Warn("analytics connect fetch failed", slog.String("key", key), slog.Any("error", err))
 		return nil, err
@@ -202,9 +214,17 @@ func (uc *AnalyticsUseCase) HandleCommand(ctx context.Context, key, token string
 		return nil, base, err
 	}
 
+	query := sanitized.Query
+	if cfg.RequiresIdentifier && cfg.IdentifierAsQuery {
+		if query == nil {
+			query = make(map[string]string)
+		}
+		query[cfg.IdentifierParam] = sanitized.Identifier
+	}
+
 	trimmedToken := strings.TrimSpace(token)
-	slog.Debug("analytics command fetch", slog.String("key", key), slog.Any("query", sanitized.Query))
-	snapshot, err := uc.fetcher.Fetch(ctx, trimmedToken, path, sanitized.Query)
+	slog.Debug("analytics command fetch", slog.String("key", key), slog.Any("query", query))
+	snapshot, err := uc.fetcher.Fetch(ctx, trimmedToken, path, query)
 	if err != nil {
 		return nil, base, err
 	}
@@ -265,11 +285,11 @@ func normalizeAnalyticsEntity(scope, raw string) string {
 			"restaurant-users": "users",
 		},
 		"admin": {
-			"auth":               "auth",
-			"auth-user":          "auth",
-			"auth-users":         "auth",
-			"user":               "auth",
-			"users":              "auth",
+			"auth":               "users",
+			"auth-user":          "users",
+			"auth-users":         "users",
+			"user":               "users",
+			"users":              "users",
 			"restaurant":         "restaurants",
 			"restaurants":        "restaurants",
 			"section":            "sections",
@@ -332,38 +352,39 @@ func defaultAnalyticsEndpoints() map[string]AnalyticsEndpointConfig {
 			Key:          "analytics-public-users",
 			Scope:        "public",
 			Entity:       "analytics-public-users",
-			PathTemplate: "/api/v1/public/users/analytics",
+			PathTemplate: "/api/v1/users/analytics",
 			QueryParams:  []string{"startDate"},
 		},
 		{
 			Key:          "analytics-public-dishes",
 			Scope:        "public",
 			Entity:       "analytics-public-dishes",
-			PathTemplate: "/api/v1/public/dishes/analytics",
+			PathTemplate: "/api/v1/dishes/analytics",
 			QueryParams:  []string{"startDate"},
 		},
 		{
 			Key:          "analytics-public-menus",
 			Scope:        "public",
 			Entity:       "analytics-public-menus",
-			PathTemplate: "/api/v1/public/menus/analytics",
+			PathTemplate: "/api/v1/menus/analytics",
 			QueryParams:  []string{"startDate"},
 		},
 		{
 			Key:                "analytics-restaurant-users",
 			Scope:              "restaurant",
 			Entity:             "analytics-restaurant-users",
-			PathTemplate:       "/api/v1/restaurant/users/analytics/restaurant/%s",
+			PathTemplate:       "/api/v1/users/analytics",
 			RequiresIdentifier: true,
 			IdentifierParam:    "restaurantId",
+			IdentifierAsQuery:  true,
 			QueryParams:        []string{"startDate"},
 			RequireToken:       true,
 		},
 		{
-			Key:          "analytics-admin-auth",
+			Key:          "analytics-admin-users",
 			Scope:        "admin",
-			Entity:       "analytics-admin-auth",
-			PathTemplate: "/api/v1/auth/analytics",
+			Entity:       "analytics-admin-users",
+			PathTemplate: "/api/v1/users/analytics",
 			QueryParams:  []string{"startDate"},
 			RequireToken: true,
 		},
@@ -371,7 +392,7 @@ func defaultAnalyticsEndpoints() map[string]AnalyticsEndpointConfig {
 			Key:          "analytics-admin-restaurants",
 			Scope:        "admin",
 			Entity:       "analytics-admin-restaurants",
-			PathTemplate: "/api/v1/admin/restaurant/analytics",
+			PathTemplate: "/api/v1/restaurants/analytics",
 			QueryParams:  []string{"startDate"},
 			RequireToken: true,
 		},
@@ -379,7 +400,7 @@ func defaultAnalyticsEndpoints() map[string]AnalyticsEndpointConfig {
 			Key:          "analytics-admin-sections",
 			Scope:        "admin",
 			Entity:       "analytics-admin-sections",
-			PathTemplate: "/api/v1/admin/section/analytics",
+			PathTemplate: "/api/v1/sections/analytics",
 			QueryParams:  []string{"restaurantId", "startDate"},
 			RequireToken: true,
 		},
@@ -387,7 +408,7 @@ func defaultAnalyticsEndpoints() map[string]AnalyticsEndpointConfig {
 			Key:          "analytics-admin-tables",
 			Scope:        "admin",
 			Entity:       "analytics-admin-tables",
-			PathTemplate: "/api/v1/admin/table/analytics",
+			PathTemplate: "/api/v1/tables/analytics",
 			QueryParams:  []string{"sectionId", "restaurantId", "startDate"},
 			RequireToken: true,
 		},
@@ -395,7 +416,7 @@ func defaultAnalyticsEndpoints() map[string]AnalyticsEndpointConfig {
 			Key:          "analytics-admin-images",
 			Scope:        "admin",
 			Entity:       "analytics-admin-images",
-			PathTemplate: "/api/v1/admin/image/analytics",
+			PathTemplate: "/api/v1/images/analytics",
 			QueryParams:  []string{"startDate"},
 			RequireToken: true,
 		},
@@ -403,7 +424,7 @@ func defaultAnalyticsEndpoints() map[string]AnalyticsEndpointConfig {
 			Key:          "analytics-admin-objects",
 			Scope:        "admin",
 			Entity:       "analytics-admin-objects",
-			PathTemplate: "/api/v1/admin/object/analytics",
+			PathTemplate: "/api/v1/objects/analytics",
 			QueryParams:  []string{"startDate"},
 			RequireToken: true,
 		},
@@ -411,7 +432,7 @@ func defaultAnalyticsEndpoints() map[string]AnalyticsEndpointConfig {
 			Key:          "analytics-admin-subscriptions",
 			Scope:        "admin",
 			Entity:       "analytics-admin-subscriptions",
-			PathTemplate: "/api/v1/admin/subscriptions/analytics",
+			PathTemplate: "/api/v1/subscriptions/analytics",
 			QueryParams:  []string{"startDate"},
 			RequireToken: true,
 		},
@@ -419,7 +440,7 @@ func defaultAnalyticsEndpoints() map[string]AnalyticsEndpointConfig {
 			Key:          "analytics-admin-subscription-plans",
 			Scope:        "admin",
 			Entity:       "analytics-admin-subscription-plans",
-			PathTemplate: "/api/v1/admin/subscription-plans/analytics",
+			PathTemplate: "/api/v1/subscription-plans/analytics",
 			QueryParams:  []string{"startDate"},
 			RequireToken: true,
 		},
@@ -427,7 +448,7 @@ func defaultAnalyticsEndpoints() map[string]AnalyticsEndpointConfig {
 			Key:          "analytics-admin-reservations",
 			Scope:        "admin",
 			Entity:       "analytics-admin-reservations",
-			PathTemplate: "/api/v1/admin/reservations/analytics",
+			PathTemplate: "/api/v1/reservations/analytics",
 			QueryParams:  []string{"restaurantId", "startDate"},
 			RequireToken: true,
 		},
@@ -435,7 +456,7 @@ func defaultAnalyticsEndpoints() map[string]AnalyticsEndpointConfig {
 			Key:          "analytics-admin-reviews",
 			Scope:        "admin",
 			Entity:       "analytics-admin-reviews",
-			PathTemplate: "/api/v1/admin/review/analytics",
+			PathTemplate: "/api/v1/reviews/analytics/stats",
 			QueryParams:  []string{"restaurantId", "startDate"},
 			RequireToken: true,
 		},
@@ -443,7 +464,7 @@ func defaultAnalyticsEndpoints() map[string]AnalyticsEndpointConfig {
 			Key:          "analytics-admin-payments",
 			Scope:        "admin",
 			Entity:       "analytics-admin-payments",
-			PathTemplate: "/api/v1/admin/payments/analytics",
+			PathTemplate: "/api/v1/payments/analytics",
 			QueryParams:  []string{"restaurantId", "startDate"},
 			RequireToken: true,
 		},
@@ -737,7 +758,7 @@ func normalizeAnalyticsDependencyEntity(raw string) string {
 	case "payment", "payments":
 		return "payments"
 	case "auth", "auth-user", "auth-users", "auth_user", "auth_users", "user", "users", "authuser", "authusers":
-		return "auth-users"
+		return "users"
 	case "menu", "menus":
 		return "menus"
 	case "dish", "dishes":

@@ -28,6 +28,8 @@ type Client struct {
 	receiveAll bool
 	closeHooks []func(*Client)
 	hookMu     sync.Mutex
+	mu         sync.Mutex
+	closed     bool
 }
 
 type Command struct {
@@ -68,7 +70,11 @@ func (c *Client) key() string {
 
 func (c *Client) close() {
 	c.closeOnce.Do(func() {
+		c.mu.Lock()
+		c.closed = true
 		close(c.send)
+		c.mu.Unlock()
+
 		_ = c.conn.Close()
 		c.invokeCloseHooks()
 	})
@@ -108,6 +114,14 @@ func (c *Client) SendDomainMessage(msg *domain.Message) {
 		slog.Error("websocket marshal error", slog.Any("error", err))
 		return
 	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.closed {
+		return
+	}
+
 	select {
 	case c.send <- data:
 	default:

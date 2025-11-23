@@ -112,7 +112,7 @@ Follow these steps to introduce an entity (e.g. `users`) that should expose real
 
 Each time the REST API adds or modifies an owner-facing controller (`mesaya_rest/src/features/**/controllers/v1/restaurant-*.controller.ts`), update the `entityEndpoints` catalog inside `internal/modules/realtime/infrastructure/section_snapshot_http_client.go`. The owner variant must:
 
-1. Point `listPathBuilder`/`detailPathBuilder` at the `/api/v1/restaurant/...` routes exposed by Nest.
+1. Point `listPathBuilder`/`detailPathBuilder` at the `/api/v1/...` routes exposed by Nest.
 2. Provide `sectionQueryKey` when the controller requires `restaurantId` or `sectionId` as a query string instead of a path param.
 3. Define `filterAliases` so websocket filters (`restaurantid`, `sectionid`, `date`, etc.) match the REST query names, while leaving unsupported filters empty to drop them automatically.
 4. Gain a regression test in `section_snapshot_http_client_test.go` that exercises the new owner variant (similar to the reservation smoke test) to ensure list and detail paths, headers, and filter coercion remain correct.
@@ -160,9 +160,11 @@ auth-users:mesa-ya.auth.user-signed-up|mesa-ya.auth.user-logged-in|mesa-ya.auth.
 - **Unit tests**: Ensure normalization, command handlers, and use cases return expected domain messages. Example: `internal/modules/realtime/interface/http.handler_test.go`.
 - **Integration tests**: Mock REST responses or use a lightweight server to exercise `SectionSnapshotHTTPClient`.
 - **Manual verification**: Use `wscat` or similar tools to connect:
+
   ```
   wscat -H "Authorization: Bearer <JWT>" -c ws://localhost:8080/ws/restaurants/main-hall
   ```
+
   Fire commands like `{"action":"list_restaurants"}` to verify responses.
 
 ## Operational Checklist

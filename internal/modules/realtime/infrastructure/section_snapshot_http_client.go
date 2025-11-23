@@ -65,26 +65,26 @@ func mergeVariants(base, override endpointVariant) endpointVariant {
 var entityEndpoints = map[string]entityEndpoint{
 	"restaurants": {
 		defaultVariant: endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/admin/restaurants"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/admin/restaurants"),
+			listPathBuilder:   staticPathBuilder("/api/v1/restaurants"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/restaurants"),
 		},
 		ownerVariant: &endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/restaurant/me"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/restaurant"),
+			listPathBuilder:   staticPathBuilder("/api/v1/restaurants/me"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/restaurants"),
 		},
 	},
 	"tables": {
 		defaultVariant: endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/admin/tables"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/admin/tables"),
+			listPathBuilder:   staticPathBuilder("/api/v1/tables"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/tables"),
 			filterAliases: map[string]string{
 				"restaurantid": "restaurantId",
 				"sectionid":    "sectionId",
 			},
 		},
 		ownerVariant: &endpointVariant{
-			listPathBuilder:   requiredValuePathBuilder("/api/v1/restaurant/tables/section/%s"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/restaurant/tables"),
+			listPathBuilder:   requiredValuePathBuilder("/api/v1/tables/section/%s"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/tables"),
 			filterAliases: map[string]string{
 				"restaurantid": "restaurantId",
 				"sectionid":    "sectionId",
@@ -93,8 +93,8 @@ var entityEndpoints = map[string]entityEndpoint{
 	},
 	"reservations": {
 		defaultVariant: endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/admin/reservations"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/admin/reservations"),
+			listPathBuilder:   staticPathBuilder("/api/v1/reservations"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/reservations"),
 			filterAliases: map[string]string{
 				"status":       "status",
 				"restaurantid": "restaurantId",
@@ -102,8 +102,8 @@ var entityEndpoints = map[string]entityEndpoint{
 			},
 		},
 		ownerVariant: &endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/restaurant/reservations"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/restaurant/reservations"),
+			listPathBuilder:   staticPathBuilder("/api/v1/reservations"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/reservations"),
 			sectionQueryKey:   "restaurantId",
 			filterAliases: map[string]string{
 				"status":       "status",
@@ -115,21 +115,22 @@ var entityEndpoints = map[string]entityEndpoint{
 	},
 	"reviews": {
 		defaultVariant: endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/admin/reviews"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/admin/reviews"),
+			listPathBuilder:   staticPathBuilder("/api/v1/reviews"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/reviews"),
 		},
 	},
 	"sections": {
 		defaultVariant: endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/admin/sections"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/admin/sections"),
+			listPathBuilder:   staticPathBuilder("/api/v1/sections"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/sections"),
 			filterAliases: map[string]string{
 				"restaurantid": "restaurantId",
 			},
 		},
 		ownerVariant: &endpointVariant{
-			listPathBuilder:   requiredValuePathBuilder("/api/v1/restaurant/sections/restaurant/%s"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/restaurant/sections"),
+			listPathBuilder:   staticPathBuilder("/api/v1/sections"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/sections"),
+			sectionQueryKey:   "restaurantId",
 			filterAliases: map[string]string{
 				"restaurantid": "restaurantId",
 			},
@@ -137,14 +138,14 @@ var entityEndpoints = map[string]entityEndpoint{
 	},
 	"objects": {
 		defaultVariant: endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/admin/objects"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/admin/objects"),
+			listPathBuilder:   staticPathBuilder("/api/v1/objects"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/objects"),
 		},
 	},
 	"menus": {
 		defaultVariant: endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/admin/menus"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/admin/menus"),
+			listPathBuilder:   staticPathBuilder("/api/v1/menus"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/menus"),
 			filterAliases: map[string]string{
 				"restaurantid": "restaurantId",
 			},
@@ -152,8 +153,8 @@ var entityEndpoints = map[string]entityEndpoint{
 	},
 	"dishes": {
 		defaultVariant: endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/admin/dishes"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/admin/dishes"),
+			listPathBuilder:   staticPathBuilder("/api/v1/dishes"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/dishes"),
 			filterAliases: map[string]string{
 				"restaurantid": "restaurantId",
 			},
@@ -161,35 +162,23 @@ var entityEndpoints = map[string]entityEndpoint{
 	},
 	"images": {
 		defaultVariant: endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/admin/images"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/admin/images"),
+			listPathBuilder:   staticPathBuilder("/api/v1/images"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/images"),
 			filterAliases: map[string]string{
 				"entityid": "entityId",
 			},
 		},
 	},
-	"owners": {
-		defaultVariant: endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/auth/admin/users"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/auth/admin/users"),
-			filterAliases: map[string]string{
-				"status":       "status",
-				"role":         "role",
-				"restaurantid": "restaurantId",
-				"active":       "active",
-			},
-		},
-	},
 	"section-objects": {
 		defaultVariant: endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/admin/section-objects"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/admin/section-objects"),
+			listPathBuilder:   staticPathBuilder("/api/v1/section-objects"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/section-objects"),
 		},
 	},
 	"payments": {
 		defaultVariant: endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/admin/payments"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/admin/payments"),
+			listPathBuilder:   staticPathBuilder("/api/v1/payments"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/payments"),
 			filterAliases: map[string]string{
 				"status":        "status",
 				"type":          "type",
@@ -202,38 +191,40 @@ var entityEndpoints = map[string]entityEndpoint{
 			},
 		},
 		ownerVariant: &endpointVariant{
-			listPathBuilder:   requiredValuePathBuilder("/api/v1/restaurant/payments/restaurant/%s"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/restaurant/payments"),
+			listPathBuilder:   staticPathBuilder("/api/v1/payments"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/payments"),
+			sectionQueryKey:   "restaurantId",
 		},
 	},
 	"schedules": {
 		defaultVariant: endpointVariant{
-			listPathBuilder:   requiredValuePathBuilder("/api/v1/admin/restaurants/%s/schedules"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/admin/schedules"),
+			listPathBuilder:   requiredValuePathBuilder("/api/v1/restaurants/%s/schedules"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/schedules"),
 		},
 		ownerVariant: &endpointVariant{
-			listPathBuilder: requiredValuePathBuilder("/api/v1/restaurant/schedules/restaurant/%s"),
+			listPathBuilder: requiredValuePathBuilder("/api/v1/restaurants/%s/schedules"),
 		},
 	},
 	"subscriptions": {
 		defaultVariant: endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/admin/subscriptions"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/admin/subscriptions"),
+			listPathBuilder:   staticPathBuilder("/api/v1/subscriptions"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/subscriptions"),
 		},
 		ownerVariant: &endpointVariant{
-			listPathBuilder: requiredValuePathBuilder("/api/v1/restaurant/subscriptions/restaurant/%s"),
+			listPathBuilder: staticPathBuilder("/api/v1/subscriptions"),
+			sectionQueryKey: "restaurantId",
 		},
 	},
 	"subscription-plans": {
 		defaultVariant: endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/admin/subscription-plans"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/admin/subscription-plans"),
+			listPathBuilder:   staticPathBuilder("/api/v1/subscription-plans"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/subscription-plans"),
 		},
 	},
-	"auth-users": {
+	"users": {
 		defaultVariant: endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/auth/admin/users"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/auth/admin/users"),
+			listPathBuilder:   staticPathBuilder("/api/v1/users"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/users"),
 			filterAliases: map[string]string{
 				"status":       "status",
 				"role":         "role",
@@ -250,10 +241,10 @@ var entityEndpoints = map[string]entityEndpoint{
 			},
 		},
 	},
-	"owner-upgrade": {
+	"owner-upgrades": {
 		defaultVariant: endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/owners/upgrade-requests"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/owners/upgrade-requests"),
+			listPathBuilder:   staticPathBuilder("/api/v1/owner-upgrades"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/owner-upgrades"),
 			filterAliases: map[string]string{
 				"status": "status",
 				"userid": "userId",

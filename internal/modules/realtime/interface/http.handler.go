@@ -68,9 +68,8 @@ var entityPolicies = map[string]entityPolicy{
 	"payments":           newEntityPolicy(roleAdmin, roleOwner),
 	"subscriptions":      newEntityPolicy(roleAdmin, roleOwner),
 	"subscription-plans": newEntityPolicy(roleAdmin, roleOwner, roleUser),
-	"auth-users":         newEntityPolicy(roleAdmin),
-	"owners":             newEntityPolicy(roleAdmin),
-	"owner-upgrade":      newEntityPolicy(roleAdmin),
+	"users":              newEntityPolicy(roleAdmin),
+	"owner-upgrades":     newEntityPolicy(roleAdmin),
 }
 
 func isEntityAccessAllowed(entity string, claims *auth.Claims) bool {
@@ -411,14 +410,12 @@ func normalizeEntity(raw string) string {
 		return "subscription-plans"
 	case "subscriptionplan", "subscriptionplans":
 		return "subscription-plans"
-	case "auth-user", "auth-users", "auth_user", "auth_users":
-		return "auth-users"
-	case "authuser", "authusers", "auth":
-		return "auth-users"
+	case "user", "users", "auth-user", "auth-users", "auth_user", "auth_users", "authuser", "authusers", "auth":
+		return "users"
 	case "owner", "owners":
-		return "owners"
+		return "users"
 	case "owner-upgrade", "owner-upgrades", "owner_upgrade", "owner_upgrades", "ownerupgrade", "ownerupgrades":
-		return "owner-upgrade"
+		return "owner-upgrades"
 	default:
 		return trimmed
 	}

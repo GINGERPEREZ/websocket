@@ -16,8 +16,8 @@ func TestNormalizeAnalyticsDependencyEntity(t *testing.T) {
 		"Reservation":      "reservations",
 		"Review":           "reviews",
 		"Payment":          "payments",
-		"auth":             "auth-users",
-		"Auth_Users":       "auth-users",
+		"auth":             "users",
+		"Auth_Users":       "users",
 		"Menu":             "menus",
 		"DISH":             "dishes",
 	}

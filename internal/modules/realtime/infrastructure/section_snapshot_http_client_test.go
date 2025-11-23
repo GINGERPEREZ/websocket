@@ -77,14 +77,14 @@ func TestEntityEndpointsResolveOwnerVariants(t *testing.T) {
 		if err != nil {
 			t.Fatalf("sections list builder failed: %v", err)
 		}
-		if listPath != "/api/v1/restaurant/sections/restaurant/restaurant-123" {
+		if listPath != "/api/v1/sections/restaurant/restaurant-123" {
 			t.Fatalf("unexpected sections list path: %s", listPath)
 		}
 		detailPath, err := sections.detailPathBuilder("  section-9  ")
 		if err != nil {
 			t.Fatalf("sections detail builder failed: %v", err)
 		}
-		if detailPath != "/api/v1/restaurant/sections/section-9" {
+		if detailPath != "/api/v1/sections/section-9" {
 			t.Fatalf("unexpected sections detail path: %s", detailPath)
 		}
 	})
@@ -95,14 +95,14 @@ func TestEntityEndpointsResolveOwnerVariants(t *testing.T) {
 		if err != nil {
 			t.Fatalf("tables list builder failed: %v", err)
 		}
-		if listPath != "/api/v1/restaurant/tables/section/section-321" {
+		if listPath != "/api/v1/tables/section/section-321" {
 			t.Fatalf("unexpected tables list path: %s", listPath)
 		}
 		detailPath, err := tables.detailPathBuilder(" table-99 ")
 		if err != nil {
 			t.Fatalf("tables detail builder failed: %v", err)
 		}
-		if detailPath != "/api/v1/restaurant/tables/table-99" {
+		if detailPath != "/api/v1/tables/table-99" {
 			t.Fatalf("unexpected tables detail path: %s", detailPath)
 		}
 	})
@@ -113,14 +113,14 @@ func TestEntityEndpointsResolveOwnerVariants(t *testing.T) {
 		if err != nil {
 			t.Fatalf("payments list builder failed: %v", err)
 		}
-		if paymentList != "/api/v1/restaurant/payments/restaurant/restaurant-456" {
+		if paymentList != "/api/v1/payments/restaurant/restaurant-456" {
 			t.Fatalf("unexpected payments list path: %s", paymentList)
 		}
 		paymentDetail, err := payments.detailPathBuilder(" pay-7 ")
 		if err != nil {
 			t.Fatalf("payments detail builder failed: %v", err)
 		}
-		if paymentDetail != "/api/v1/restaurant/payments/pay-7" {
+		if paymentDetail != "/api/v1/payments/pay-7" {
 			t.Fatalf("unexpected payments detail path: %s", paymentDetail)
 		}
 	})
@@ -131,14 +131,14 @@ func TestEntityEndpointsResolveOwnerVariants(t *testing.T) {
 		if err != nil {
 			t.Fatalf("subscriptions list builder failed: %v", err)
 		}
-		if subList != "/api/v1/restaurant/subscriptions/restaurant/restaurant-789" {
+		if subList != "/api/v1/subscriptions/restaurant/restaurant-789" {
 			t.Fatalf("unexpected subscriptions list path: %s", subList)
 		}
 		subDetail, err := subscriptions.detailPathBuilder(" sub-1 ")
 		if err != nil {
 			t.Fatalf("subscriptions detail builder failed: %v", err)
 		}
-		if subDetail != "/api/v1/admin/subscriptions/sub-1" {
+		if subDetail != "/api/v1/subscriptions/sub-1" {
 			t.Fatalf("unexpected subscriptions detail path: %s", subDetail)
 		}
 	})
@@ -149,14 +149,14 @@ func TestEntityEndpointsResolveOwnerVariants(t *testing.T) {
 		if err != nil {
 			t.Fatalf("restaurants list builder failed: %v", err)
 		}
-		if listPath != "/api/v1/restaurant/me" {
+		if listPath != "/api/v1/restaurants/me" {
 			t.Fatalf("unexpected restaurants list path: %s", listPath)
 		}
 		detailPath, err := restaurants.detailPathBuilder(" rest-42 ")
 		if err != nil {
 			t.Fatalf("restaurants detail builder failed: %v", err)
 		}
-		if detailPath != "/api/v1/restaurant/rest-42" {
+		if detailPath != "/api/v1/restaurants/rest-42" {
 			t.Fatalf("unexpected restaurants detail path: %s", detailPath)
 		}
 	})
@@ -167,14 +167,14 @@ func TestEntityEndpointsResolveOwnerVariants(t *testing.T) {
 		if err != nil {
 			t.Fatalf("schedules list builder failed: %v", err)
 		}
-		if listPath != "/api/v1/restaurant/schedules/restaurant/rest-555" {
+		if listPath != "/api/v1/restaurants/rest-555/schedules" {
 			t.Fatalf("unexpected schedules list path: %s", listPath)
 		}
 		detailPath, err := schedules.detailPathBuilder(" sched-1 ")
 		if err != nil {
 			t.Fatalf("schedules detail builder failed: %v", err)
 		}
-		if detailPath != "/api/v1/admin/schedules/sched-1" {
+		if detailPath != "/api/v1/schedules/sched-1" {
 			t.Fatalf("unexpected schedules detail path: %s", detailPath)
 		}
 	})
@@ -190,11 +190,11 @@ func TestSectionSnapshotHTTPClient_OwnerReservations(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 
 		switch {
-		case r.URL.Path == "/api/v1/restaurant/reservations":
+		case r.URL.Path == "/api/v1/reservations":
 			if _, err := io.WriteString(w, `[{"id":"res-1"}]`); err != nil {
 				t.Fatalf("write list response: %v", err)
 			}
-		case strings.HasPrefix(r.URL.Path, "/api/v1/restaurant/reservations/"):
+		case strings.HasPrefix(r.URL.Path, "/api/v1/reservations/"):
 			if _, err := io.WriteString(w, `{"id":"res-1"}`); err != nil {
 				t.Fatalf("write detail response: %v", err)
 			}
@@ -220,7 +220,7 @@ func TestSectionSnapshotHTTPClient_OwnerReservations(t *testing.T) {
 	}
 
 	listReq := <-requests
-	if got := listReq.URL.Path; got != "/api/v1/restaurant/reservations" {
+	if got := listReq.URL.Path; got != "/api/v1/reservations" {
 		t.Fatalf("unexpected list path: %s", got)
 	}
 	if auth := listReq.Header.Get("Authorization"); auth != "Bearer token-abc" {
@@ -254,7 +254,7 @@ func TestSectionSnapshotHTTPClient_OwnerReservations(t *testing.T) {
 	}
 
 	detailReq := <-requests
-	if got := detailReq.URL.Path; got != "/api/v1/restaurant/reservations/res-1" {
+	if got := detailReq.URL.Path; got != "/api/v1/reservations/res-1" {
 		t.Fatalf("unexpected detail path: %s", got)
 	}
 	if auth := detailReq.Header.Get("Authorization"); auth != "Bearer token-abc" {
