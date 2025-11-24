@@ -143,8 +143,8 @@ var entityEndpoints = map[string]entityEndpoint{
 	},
 	"menus": {
 		defaultVariant: endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/admin/menus"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/admin/menus"),
+			listPathBuilder:   staticPathBuilder("/api/v1/menus"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/menus"),
 			filterAliases: map[string]string{
 				"restaurantid": "restaurantId",
 			},
@@ -152,8 +152,8 @@ var entityEndpoints = map[string]entityEndpoint{
 	},
 	"dishes": {
 		defaultVariant: endpointVariant{
-			listPathBuilder:   staticPathBuilder("/api/v1/admin/dishes"),
-			detailPathBuilder: resourcePathBuilder("/api/v1/admin/dishes"),
+			listPathBuilder:   staticPathBuilder("/api/v1/dishes"),
+			detailPathBuilder: resourcePathBuilder("/api/v1/dishes"),
 			filterAliases: map[string]string{
 				"restaurantid": "restaurantId",
 			},
