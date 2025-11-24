@@ -157,19 +157,13 @@ func Load() (Config, error) {
 				"mesa-ya.subscription-plans.updated",
 				"mesa-ya.subscription-plans.deleted",
 			},
-			"auth-users": {
+			"users": {
 				"mesa-ya.auth.user-signed-up",
 				"mesa-ya.auth.user-logged-in",
 				"mesa-ya.auth.user-roles-updated",
 				"mesa-ya.auth.role-permissions-updated",
 			},
-			"owners": {
-				"mesa-ya.auth.user-signed-up",
-				"mesa-ya.auth.user-logged-in",
-				"mesa-ya.auth.user-roles-updated",
-				"mesa-ya.auth.role-permissions-updated",
-			},
-			"owner-upgrade": {
+			"owner-upgrades": {
 				"mesa-ya.owner-upgrade.status-changed",
 			},
 		}
