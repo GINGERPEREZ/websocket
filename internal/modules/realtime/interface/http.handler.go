@@ -429,12 +429,14 @@ func executeListCommand[T any](
 	client *infrastructure.Client,
 	listFn func(context.Context, string, port.SnapshotContext, T, string) (*domain.Message, error),
 ) {
+	slog.Debug("ws handler list command received", slog.String("entity", entity), slog.String("sectionId", section), slog.String("rawPayload", string(cmd.Payload)))
 	payload, err := decodeCommand[T](cmd.Payload)
 	if err != nil {
 		slog.Warn("ws handler list payload decode failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
 		sendCommandError(client, entity, section, "list", "invalid payload")
 		return
 	}
+	slog.Debug("ws handler list command decoded", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("payload", payload))
 	message, err := listFn(ctx, token, snapshotCtx, payload, entity)
 	if err != nil {
 		slog.Warn("ws handler list fetch failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))

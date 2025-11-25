@@ -476,6 +476,7 @@ func (v endpointVariant) mapFilterKey(key string) string {
 
 func buildQueryValues(query domain.PagedQuery, defaultSearch string, variant endpointVariant) url.Values {
 	normalized := query.Normalize(strings.TrimSpace(defaultSearch))
+	slog.Debug("snapshot query normalized", slog.Int("page", normalized.Page), slog.Int("limit", normalized.Limit), slog.String("search", normalized.Search))
 	values := url.Values{}
 	values.Set("page", strconv.Itoa(normalized.Page))
 	values.Set("limit", strconv.Itoa(normalized.Limit))
