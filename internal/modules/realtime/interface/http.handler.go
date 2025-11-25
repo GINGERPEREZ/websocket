@@ -436,7 +436,12 @@ func executeListCommand[T any](
 		sendCommandError(client, entity, section, "list", "invalid payload")
 		return
 	}
-	slog.Debug("ws handler list command decoded", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("payload", payload))
+	// Log decoded payload with specific fields if it's a ListEntityCommand
+	if listCmd, ok := any(payload).(domain.ListEntityCommand); ok {
+		slog.Debug("ws handler list command decoded", slog.String("entity", entity), slog.String("sectionId", section), slog.Int("page", listCmd.Page), slog.Int("limit", listCmd.Limit), slog.String("search", listCmd.Search))
+	} else {
+		slog.Debug("ws handler list command decoded", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("payload", payload))
+	}
 	message, err := listFn(ctx, token, snapshotCtx, payload, entity)
 	if err != nil {
 		slog.Warn("ws handler list fetch failed", slog.String("entity", entity), slog.String("sectionId", section), slog.Any("error", err))
