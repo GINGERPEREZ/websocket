@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/segmentio/kafka-go"
@@ -12,8 +13,95 @@ import (
 	"mesaYaWs/internal/modules/realtime/domain"
 )
 
+// Circuit breaker constants
+const (
+	maxConsecutiveErrors = 3
+	initialBackoff       = 5 * time.Second
+	maxBackoff           = 60 * time.Second
+	logThrottleInterval  = 30 * time.Second
+)
+
+// Global circuit breaker shared across all consumers
+var globalCircuit = &circuitBreaker{
+	currentBackoff: initialBackoff,
+}
+
+type circuitBreaker struct {
+	mu               sync.Mutex
+	consecutiveErrs  int
+	currentBackoff   time.Duration
+	lastErrorLogTime time.Time
+	circuitOpen      bool
+}
+
+func (cb *circuitBreaker) isOpen() bool {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	return cb.circuitOpen
+}
+
+func (cb *circuitBreaker) recordError(err error, topic string) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+
+	cb.consecutiveErrs++
+
+	// Only log periodically to avoid spam
+	now := time.Now()
+	if now.Sub(cb.lastErrorLogTime) >= logThrottleInterval {
+		slog.Warn("kafka connection error",
+			slog.Any("error", err),
+			slog.String("topic", topic),
+			slog.Int("consecutive_errors", cb.consecutiveErrs),
+			slog.Duration("backoff", cb.currentBackoff),
+		)
+		cb.lastErrorLogTime = now
+	}
+
+	// Open circuit after max consecutive errors
+	if cb.consecutiveErrs >= maxConsecutiveErrors && !cb.circuitOpen {
+		cb.circuitOpen = true
+		slog.Info("kafka circuit breaker OPEN - will retry in",
+			slog.Duration("backoff", cb.currentBackoff),
+		)
+	}
+}
+
+func (cb *circuitBreaker) waitBackoff(ctx context.Context) {
+	cb.mu.Lock()
+	backoff := cb.currentBackoff
+	cb.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(backoff):
+		cb.mu.Lock()
+		cb.circuitOpen = false
+		// Exponential backoff for next failure
+		cb.currentBackoff *= 2
+		if cb.currentBackoff > maxBackoff {
+			cb.currentBackoff = maxBackoff
+		}
+		cb.mu.Unlock()
+		slog.Info("kafka circuit breaker CLOSED - retrying connection")
+	}
+}
+
+func (cb *circuitBreaker) reset() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	if cb.consecutiveErrs > 0 {
+		slog.Info("kafka connection restored")
+	}
+	cb.consecutiveErrs = 0
+	cb.currentBackoff = initialBackoff
+	cb.circuitOpen = false
+}
+
 type KafkaConsumer struct {
 	reader *kafka.Reader
+	topic  string
 }
 
 func NewKafkaConsumer(brokers []string, groupID string, topic string) *KafkaConsumer {
@@ -23,16 +111,26 @@ func NewKafkaConsumer(brokers []string, groupID string, topic string) *KafkaCons
 			GroupID: groupID,
 			Topic:   topic,
 		}),
+		topic: topic,
 	}
 }
 
 func (c *KafkaConsumer) Consume(ctx context.Context, handler func(*domain.Message) error) error {
 	for {
-		m, err := c.reader.ReadMessage(ctx)
-		if err != nil {
-			slog.Warn("kafka read error", slog.Any("error", err))
+		// Check if global circuit is open
+		if globalCircuit.isOpen() {
+			globalCircuit.waitBackoff(ctx)
 			continue
 		}
+
+		m, err := c.reader.ReadMessage(ctx)
+		if err != nil {
+			globalCircuit.recordError(err, c.topic)
+			continue
+		}
+
+		// Reset global circuit on success
+		globalCircuit.reset()
 		msg := decodeMessage(m)
 		slog.Info("kafka message consumed",
 			slog.String("topic", m.Topic),
