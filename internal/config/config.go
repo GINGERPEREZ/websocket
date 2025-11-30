@@ -84,6 +84,8 @@ func Load() (Config, error) {
 					"user-logged-in",
 					"user-roles-updated",
 					"role-permissions-updated",
+					"selecting",
+					"released",
 				},
 			),
 			DefaultEntity: stringOrDefault(strings.TrimSpace(os.Getenv("WS_DEFAULT_ENTITY")), "restaurants"),
@@ -111,6 +113,8 @@ func Load() (Config, error) {
 				"mesa-ya.tables.created",
 				"mesa-ya.tables.updated",
 				"mesa-ya.tables.deleted",
+				"mesa-ya.tables.selecting",
+				"mesa-ya.tables.released",
 			},
 			"objects": {
 				"mesa-ya.objects.created",
