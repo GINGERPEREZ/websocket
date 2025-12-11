@@ -75,100 +75,69 @@ func Load() (Config, error) {
 			AllowedActions: firstNonEmptySlice(
 				splitEnv(os.Getenv("WS_ALLOWED_ACTIONS")),
 				[]string{
+					// Standard CRUD events
 					"created",
 					"updated",
 					"deleted",
-					"snapshot",
-					"status-changed",
-					"user-signed-up",
-					"user-logged-in",
-					"user-roles-updated",
-					"role-permissions-updated",
-					"selecting",
-					"released",
+					// Domain-specific events
+					"status_changed",
+					// Auth events
+					"user_signed_up",
+					"user_logged_in",
+					"roles_updated",
+					"permissions_updated",
 				},
 			),
 			DefaultEntity: stringOrDefault(strings.TrimSpace(os.Getenv("WS_DEFAULT_ENTITY")), "restaurants"),
 		},
 	}
 
+	// Default topics following Event-Driven Architecture pattern:
+	// - One topic per domain/aggregate with event_type in payload
+	// - Ephemeral events (selecting/released) handled via WebSocket only, not Kafka
 	if len(cfg.Kafka.Topics) == 0 {
 		cfg.Kafka.Topics = map[string][]string{
-			"reviews": {
-				"mesa-ya.reviews.created",
-				"mesa-ya.reviews.updated",
-				"mesa-ya.reviews.deleted",
-			},
 			"restaurants": {
-				"mesa-ya.restaurants.created",
-				"mesa-ya.restaurants.updated",
-				"mesa-ya.restaurants.deleted",
+				"mesa-ya.restaurants.events",
 			},
 			"sections": {
-				"mesa-ya.sections.created",
-				"mesa-ya.sections.updated",
-				"mesa-ya.sections.deleted",
+				"mesa-ya.sections.events",
 			},
 			"tables": {
-				"mesa-ya.tables.created",
-				"mesa-ya.tables.updated",
-				"mesa-ya.tables.deleted",
-				"mesa-ya.tables.selecting",
-				"mesa-ya.tables.released",
+				"mesa-ya.tables.events",
+				// NOTE: selecting/released are ephemeral events handled via WebSocket only
 			},
 			"objects": {
-				"mesa-ya.objects.created",
-				"mesa-ya.objects.updated",
-				"mesa-ya.objects.deleted",
+				"mesa-ya.objects.events",
 			},
 			"section-objects": {
-				"mesa-ya.section-objects.created",
-				"mesa-ya.section-objects.updated",
-				"mesa-ya.section-objects.deleted",
+				"mesa-ya.section-objects.events",
 			},
 			"menus": {
-				"mesa-ya.menus.created",
-				"mesa-ya.menus.updated",
-				"mesa-ya.menus.deleted",
+				"mesa-ya.menus.events",
+				// Includes dishes as sub-entity (entity_subtype: 'menu' | 'dish')
 			},
-			"dishes": {
-				"mesa-ya.dishes.created",
-				"mesa-ya.dishes.updated",
-				"mesa-ya.dishes.deleted",
+			"reviews": {
+				"mesa-ya.reviews.events",
 			},
 			"images": {
-				"mesa-ya.images.created",
-				"mesa-ya.images.updated",
-				"mesa-ya.images.deleted",
+				"mesa-ya.images.events",
 			},
 			"reservations": {
-				"mesa-ya.reservations.created",
-				"mesa-ya.reservations.updated",
-				"mesa-ya.reservations.deleted",
+				"mesa-ya.reservations.events",
 			},
 			"payments": {
-				"mesa-ya.payments.created",
-				"mesa-ya.payments.updated",
-				"mesa-ya.payments.deleted",
+				"mesa-ya.payments.events",
 			},
 			"subscriptions": {
-				"mesa-ya.subscriptions.created",
-				"mesa-ya.subscriptions.updated",
-				"mesa-ya.subscriptions.deleted",
+				"mesa-ya.subscriptions.events",
+				// Includes plans as sub-entity (entity_subtype: 'subscription' | 'plan')
 			},
-			"subscription-plans": {
-				"mesa-ya.subscription-plans.created",
-				"mesa-ya.subscription-plans.updated",
-				"mesa-ya.subscription-plans.deleted",
-			},
-			"users": {
-				"mesa-ya.auth.user-signed-up",
-				"mesa-ya.auth.user-logged-in",
-				"mesa-ya.auth.user-roles-updated",
-				"mesa-ya.auth.role-permissions-updated",
+			"auth": {
+				"mesa-ya.auth.events",
 			},
 			"owner-upgrades": {
-				"mesa-ya.owner-upgrade.status-changed",
+				"mesa-ya.owner-upgrade.events",
 			},
 		}
 	}

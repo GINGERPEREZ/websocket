@@ -180,22 +180,22 @@ Mensajes esperados:
 
 ### Actualizaciones provenientes de Kafka
 
-1. Un caso de uso en Nest emite `mesa-ya.restaurants.updated` (ver decoradores `@KafkaEmit`).
-2. El consumidor Kafka en Go (implementado en `internal/modules/realtime/application/handler`) procesa el evento, refresca el cache y ejecuta `BroadcastUseCase`.
+1. Un caso de uso en Nest emite eventos al topic `mesa-ya.restaurants.events` con `event_type: 'updated'` (ver decoradores `@KafkaEmit`).
+2. El consumidor Kafka en Go (implementado en `internal/modules/realtime/application/handler`) procesa el evento, extrae `event_type` del payload, refresca el cache y ejecuta `BroadcastUseCase`.
 3. El hub envía `restaurants.updated` y, si corresponde, actualiza snapshots (`restaurants.list` / `restaurants.detail`).
 
 ## Tabla de referencia rápida
 
-| Acción cliente                        | Respuesta habitual                      | Fuente de datos                                 |
-| ------------------------------------- | --------------------------------------- | ----------------------------------------------- |
-| `list_restaurants`                    | `restaurants.list`                      | REST `GET /api/v1/restaurants`                  |
-| `get_restaurant`                      | `restaurants.detail`                    | REST `GET /api/v1/restaurants/{id}`             |
-| `list_tables`                         | `tables.list`                           | REST `GET /api/v1/tables`                       |
-| `get_table`                           | `tables.detail`                         | REST `GET /api/v1/tables/{id}`                  |
-| `list_reservations`                   | `reservations.list`                     | REST `GET /api/v1/reservations`                 |
-| `get_reservation`                     | `reservations.detail`                   | REST `GET /api/v1/reservations/{id}`            |
-| Evento Kafka `mesa-ya.tables.updated` | `tables.updated` + refresco list/detail | `internal/modules/realtime/application/handler` |
-| Error de payload (`id` vacío)         | `{entity}.error` (`reason`)             | Validación en `executeDetailCommand`            |
+| Acción cliente                           | Respuesta habitual                      | Fuente de datos                                 |
+| ---------------------------------------- | --------------------------------------- | ----------------------------------------------- |
+| `list_restaurants`                       | `restaurants.list`                      | REST `GET /api/v1/restaurants`                  |
+| `get_restaurant`                         | `restaurants.detail`                    | REST `GET /api/v1/restaurants/{id}`             |
+| `list_tables`                            | `tables.list`                           | REST `GET /api/v1/tables`                       |
+| `get_table`                              | `tables.detail`                         | REST `GET /api/v1/tables/{id}`                  |
+| `list_reservations`                      | `reservations.list`                     | REST `GET /api/v1/reservations`                 |
+| `get_reservation`                        | `reservations.detail`                   | REST `GET /api/v1/reservations/{id}`            |
+| Kafka `mesa-ya.tables.events` (updated)  | `tables.updated` + refresco list/detail | `internal/modules/realtime/application/handler` |
+| Error de payload (`id` vacío)            | `{entity}.error` (`reason`)             | Validación en `executeDetailCommand`            |
 
 ## Checklist para nuevas entidades
 
@@ -203,7 +203,7 @@ Mensajes esperados:
 2. **Puertos REST** → Añade métodos a `port.SectionSnapshotFetcher` y su implementación HTTP.
 3. **Use cases** → Implementa `List<Entity>`, `Get<Entity>` y registra `handleListCommand` / `handleDetailCommand`.
 4. **Transport layer** → Añade fábrica en `entityHandlers` con alias de acción.
-5. **Kafka** → Configura tópicos en `WS_ENTITY_TOPICS` y actualiza `docs/kafka-guide.md` si es necesario.
+5. **Kafka** → Configura tópico `mesa-ya.{entity}.events` en `WS_ENTITY_TOPICS` y actualiza `docs/kafka-guide.md` si es necesario.
 6. **Docs** → Actualiza esta guía y `docs/WEBSOCKET_ENDPOINTS.md` con rutas/comandos.
 7. **Tests** → Cubrir normalización y flujos (ver `internal/modules/realtime/interface/http.handler_test.go` y `connect_section_test.go`).
 8. **Swagger** → Asegura que los endpoints REST dependientes estén documentados para debugging.

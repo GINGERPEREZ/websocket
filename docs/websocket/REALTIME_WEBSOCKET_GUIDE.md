@@ -89,27 +89,27 @@ Follow these steps to introduce an entity (e.g. `users`) that should expose real
 Environment variables consumed via `internal/config/config.go`:
 
 - `WS_DEFAULT_ENTITY` – Fallback entity when clients use `/ws/section/:id` (defaults to `restaurants`).
-- `WS_ALLOWED_ACTIONS` – Comma-separated list of action topics appended to base topics.
-- `WS_ENTITY_TOPICS` – Mapping `entity:topicA|topicB` used to subscribe Kafka consumers. When overriding, mirror the default catalog so analytics refresh stays in sync:
+- `WS_ALLOWED_ACTIONS` – Comma-separated list of event types (created, updated, deleted, status_changed, etc.).
+- `WS_ENTITY_TOPICS` – Mapping `entity:topic` used to subscribe Kafka consumers. Following Event-Driven Architecture, one topic per domain with `event_type` in payload:
 
 ```
-WS_ENTITY_TOPICS=reviews:mesa-ya.reviews.created|mesa-ya.reviews.updated|mesa-ya.reviews.deleted,
-restaurants:mesa-ya.restaurants.created|mesa-ya.restaurants.updated|mesa-ya.restaurants.deleted,
-sections:mesa-ya.sections.created|mesa-ya.sections.updated|mesa-ya.sections.deleted,
-tables:mesa-ya.tables.created|mesa-ya.tables.updated|mesa-ya.tables.deleted,
-objects:mesa-ya.objects.created|mesa-ya.objects.updated|mesa-ya.objects.deleted,
-section-objects:mesa-ya.section-objects.created|mesa-ya.section-objects.updated|mesa-ya.section-objects.deleted,
-menus:mesa-ya.menus.created|mesa-ya.menus.updated|mesa-ya.menus.deleted,
-dishes:mesa-ya.dishes.created|mesa-ya.dishes.updated|mesa-ya.dishes.deleted,
-images:mesa-ya.images.created|mesa-ya.images.updated|mesa-ya.images.deleted,
-reservations:mesa-ya.reservations.created|mesa-ya.reservations.updated|mesa-ya.reservations.deleted,
-payments:mesa-ya.payments.created|mesa-ya.payments.updated|mesa-ya.payments.deleted,
-subscriptions:mesa-ya.subscriptions.created|mesa-ya.subscriptions.updated|mesa-ya.subscriptions.deleted,
-subscription-plans:mesa-ya.subscription-plans.created|mesa-ya.subscription-plans.updated|mesa-ya.subscription-plans.deleted,
-auth-users:mesa-ya.auth.user-signed-up|mesa-ya.auth.user-logged-in|mesa-ya.auth.user-roles-updated|mesa-ya.auth.role-permissions-updated
+WS_ENTITY_TOPICS=restaurants:mesa-ya.restaurants.events,
+sections:mesa-ya.sections.events,
+tables:mesa-ya.tables.events,
+objects:mesa-ya.objects.events,
+section-objects:mesa-ya.section-objects.events,
+menus:mesa-ya.menus.events,
+reviews:mesa-ya.reviews.events,
+images:mesa-ya.images.events,
+reservations:mesa-ya.reservations.events,
+payments:mesa-ya.payments.events,
+subscriptions:mesa-ya.subscriptions.events,
+auth:mesa-ya.auth.events,
+owner-upgrades:mesa-ya.owner-upgrade.events
 ```
 
-- `REST_BASE_URL`, `REST_TIMEOUT` – Upstream REST service location for snapshots.
+> **Note:** Ephemeral events (table selecting/released) are handled via WebSocket only, not Kafka.
+
 - `REST_BASE_URL`, `REST_TIMEOUT` – Upstream REST service location for snapshots.
 - `JWT_SECRET` – Required to validate tokens locally.
 
@@ -118,9 +118,11 @@ auth-users:mesa-ya.auth.user-signed-up|mesa-ya.auth.user-logged-in|mesa-ya.auth.
 - **Unit tests**: Ensure normalization, command handlers, and use cases return expected domain messages. Example: `internal/modules/realtime/interface/http.handler_test.go`.
 - **Integration tests**: Mock REST responses or use a lightweight server to exercise `SectionSnapshotHTTPClient`.
 - **Manual verification**: Use `wscat` or similar tools to connect:
+
   ```
   wscat -H "Authorization: Bearer <JWT>" -c ws://localhost:8080/ws/restaurants/main-hall
   ```
+
   Fire commands like `{"action":"list_restaurants"}` to verify responses.
 
 ## Operational Checklist

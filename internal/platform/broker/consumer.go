@@ -147,13 +147,27 @@ func (c *KafkaConsumer) Consume(ctx context.Context, handler func(*domain.Messag
 	}
 }
 
+// rawEvent represents the event payload structure from Kafka
+// Following Event-Driven Architecture: one topic per domain with event_type in payload
 type rawEvent struct {
-	Entity     string            `json:"entity"`
-	Action     string            `json:"action"`
-	ResourceID string            `json:"resourceId"`
-	Topic      string            `json:"topic"`
-	Metadata   map[string]string `json:"metadata"`
-	Data       interface{}       `json:"data"`
+	// event_type field from payload (created, updated, deleted, status_changed, etc.)
+	EventType string `json:"event_type"`
+	// Entity ID from payload
+	EntityID string `json:"entity_id"`
+	// Optional sub-entity type (e.g., 'menu' | 'dish' for menus topic)
+	EntitySubtype string `json:"entity_subtype"`
+	// Timestamp from payload
+	Timestamp string `json:"timestamp"`
+	// Event data
+	Data interface{} `json:"data"`
+	// Optional metadata
+	Metadata map[string]string `json:"metadata"`
+
+	// Legacy fields for backward compatibility
+	Entity     string `json:"entity"`
+	Action     string `json:"action"`
+	ResourceID string `json:"resourceId"`
+	Topic      string `json:"topic"`
 }
 
 func decodeMessage(m kafka.Message) *domain.Message {
@@ -169,9 +183,18 @@ func decodeMessage(m kafka.Message) *domain.Message {
 		return msg
 	}
 
-	msg.Entity = firstNonEmpty(event.Entity, normalizeTopic(m.Topic))
-	msg.Action = firstNonEmpty(event.Action, "unknown")
-	msg.ResourceID = event.ResourceID
+	// New EDA pattern: entity from topic, action from event_type in payload
+	entity := extractEntityFromTopic(m.Topic)
+	action := firstNonEmpty(event.EventType, event.Action, "unknown")
+
+	// Handle sub-entities (e.g., dishes within menus topic)
+	if event.EntitySubtype != "" {
+		entity = event.EntitySubtype
+	}
+
+	msg.Entity = firstNonEmpty(event.Entity, entity)
+	msg.Action = action
+	msg.ResourceID = firstNonEmpty(event.EntityID, event.ResourceID)
 	msg.Metadata = event.Metadata
 	msg.Data = event.Data
 
@@ -182,6 +205,16 @@ func decodeMessage(m kafka.Message) *domain.Message {
 	}
 
 	return msg
+}
+
+// extractEntityFromTopic extracts the entity name from topic like "mesa-ya.restaurants.events"
+func extractEntityFromTopic(topic string) string {
+	parts := strings.Split(topic, ".")
+	if len(parts) >= 2 {
+		// Return the middle part (e.g., "restaurants" from "mesa-ya.restaurants.events")
+		return parts[1]
+	}
+	return normalizeTopic(topic)
 }
 
 func inferEntityActionFromTopic(topic string) (string, string) {
