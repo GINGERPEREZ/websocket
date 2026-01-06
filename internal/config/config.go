@@ -33,7 +33,8 @@ type KafkaConfig struct {
 }
 
 type SecurityConfig struct {
-	JWTSecret string
+	JWTSecret    string
+	JWTPublicKey string
 }
 
 type RESTConfig struct {
@@ -61,7 +62,10 @@ func Load() (Config, error) {
 			GroupID: stringOrDefault(os.Getenv("KAFKA_GROUP_ID"), "realtime-group"),
 			Topics:  parseTopics(os.Getenv("WS_ENTITY_TOPICS")),
 		},
-		Security: SecurityConfig{JWTSecret: trimQuotes(os.Getenv("JWT_SECRET"))},
+		Security: SecurityConfig{
+			JWTSecret:    trimQuotes(os.Getenv("JWT_SECRET")),
+			JWTPublicKey: normalizePublicKey(os.Getenv("JWT_PUBLIC_KEY")),
+		},
 		REST: RESTConfig{
 			BaseURL: stringOrDefault(trimQuotes(os.Getenv("REST_BASE_URL")), "http://localhost:3000"),
 			Timeout: durationOrDefault(os.Getenv("REST_TIMEOUT"), 10*time.Second),
@@ -201,6 +205,24 @@ func trimQuotes(raw string) string {
 		}
 	}
 	return trimmed
+}
+
+// normalizePublicKey converts escaped newlines (\n) to real newlines and ensures
+// the PEM block has proper line breaks after the header and before the footer.
+func normalizePublicKey(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	// Trim surrounding quotes if present (common in .env files)
+	key := trimQuotes(raw)
+	// Replace literal \n sequences with actual newlines
+	key = strings.ReplaceAll(key, "\\n", "\n")
+	// Ensure PEM header has newline after it
+	key = strings.ReplaceAll(key, "-----BEGIN PUBLIC KEY-----", "-----BEGIN PUBLIC KEY-----\n")
+	key = strings.ReplaceAll(key, "-----END PUBLIC KEY-----", "\n-----END PUBLIC KEY-----")
+	// Clean up any double newlines
+	key = strings.ReplaceAll(key, "\n\n", "\n")
+	return strings.TrimSpace(key)
 }
 
 func parseTopics(raw string) map[string][]string {

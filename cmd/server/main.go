@@ -49,6 +49,7 @@ func main() {
 	slog.Info("logging initialized", slog.String("directory", cfg.Logging.Directory), slog.String("level", cfg.Logging.Level), slog.String("format", cfg.Logging.Format))
 	slog.Info("kafka env snapshot", slog.String("KAFKA_BROKERS", os.Getenv("KAFKA_BROKERS")), slog.String("KAFKA_BROKER", os.Getenv("KAFKA_BROKER")))
 	slog.Info("kafka config resolved", slog.Any("brokers", cfg.Kafka.Brokers), slog.String("group", cfg.Kafka.GroupID))
+	slog.Info("security config", slog.Bool("hasPublicKey", cfg.Security.JWTPublicKey != ""), slog.Bool("hasSecret", cfg.Security.JWTSecret != ""))
 
 	hub := infrastructure.NewHub()
 	registry := infrastructure.NewHandlerRegistry()
@@ -61,7 +62,7 @@ func main() {
 	e.Logger.SetOutput(log.Writer())
 
 	// JWT validator used to validate tokens issued by the Nest auth service
-	validator := auth.NewJWTValidator(cfg.Security.JWTSecret)
+	validator := auth.NewJWTValidatorWithPublicKey(cfg.Security.JWTSecret, cfg.Security.JWTPublicKey)
 	snapshotFetcher := infrastructure.NewSectionSnapshotHTTPClient(cfg.REST.BaseURL, cfg.REST.Timeout, nil)
 	analyticsFetcher := infrastructure.NewAnalyticsHTTPClient(cfg.REST.BaseURL, cfg.REST.Timeout, nil)
 	connectUC := usecase.NewConnectSectionUseCase(validator, snapshotFetcher)
