@@ -89,6 +89,8 @@ func main() {
 	wsHandler := transport.NewWebsocketHandler(hub, connectUC, cfg.Websocket.DefaultEntity, cfg.Websocket.AllowedActions)
 	notificationsHandler := transport.NewNotificationsWebsocketHandler(hub, validator)
 	analyticsHandler := transport.NewAnalyticsWebsocketHandler(hub, analyticsUC)
+	broadcastHandler := transport.NewBroadcastHTTPHandler(broadcastUC)
+
 	// Generic entity routes: allow token in path or via query/header fallback
 	e.GET("/ws/:entity/:section/:token", wsHandler)
 	e.GET("/ws/:entity/:section", wsHandler)
@@ -96,6 +98,8 @@ func main() {
 	e.GET("/ws/notifications", notificationsHandler)
 	// Analytics websocket endpoints
 	e.GET("/ws/analytics/:scope/:entity", analyticsHandler)
+	// REST endpoint for broadcasting messages (used by n8n workflows)
+	e.POST("/broadcast", broadcastHandler)
 
 	go func() {
 		if err := e.Start(":" + cfg.Server.Port); err != nil {
